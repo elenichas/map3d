@@ -17,7 +17,19 @@ test('504 recovers through backup, then healthy server is preferred for subseque
 });
 test('both unavailable servers terminate bounded attempts without returning an empty scene',async()=>{
   let calls=0;const h=harness(async()=>{calls++;return {ok:false,status:504};});
-  await assert.rejects(h.client('busy',new AbortController().signal,()=>{}),/busy or timed out.*504.*Loaded layers are kept/);assert.equal(calls,2);
+  await assert.rejects(h.client('busy',new AbortController().signal,()=>{}),/busy or timed out.*504.*Loaded layers are kept/);assert.equal(calls,6);assert.ok(h.now()>=1700000090000);
+});
+
+test('direct Cloudflare 521 is retryable and cools the endpoint without splitting the query',async()=>{
+  const h=harness(async()=>new Response('error code: 521',{status:521}));
+  await assert.rejects(h.client.attempt('first',new AbortController().signal),error=>error.retryable && !error.canSplit);
+  await assert.rejects(h.client.attempt('second',new AbortController().signal),error=>error.retryable && !error.canSplit && error.retryAt>=1700000120000);
+});
+test('explicit Overpass resource exhaustion can split; generic gateway failures cannot',async()=>{
+  for (const [body,expected] of [['runtime error: Query timed out',true],['Bad Gateway',false]]) {
+    const h=harness(async()=>new Response(body,{status:504}));
+    await assert.rejects(h.client.attempt(body,new AbortController().signal),error=>error.canSplit===expected);
+  }
 });
 test('cancellation during a request never retries',async()=>{
   const controller=new AbortController();let calls=0;
@@ -78,11 +90,21 @@ test('persistent network failures stop after six attempts with increasing spacin
 });
 test('same-origin gateway respects retry timing and retains upstream diagnostics on failure',async()=>{
   let time=1700000000000,calls=0;
-  const client=createGeometryClient({endpoints:['/api/interpreter'],now:()=>time,wait:async ms=>{time+=ms;},fetch:async url=>{assert.equal(url,'/api/interpreter');calls++;return Response.json({error:'Map-data services could not complete this request (server: HTTP 504).'},{status:503,headers:{'Retry-After':'30'}});}});
+  const client=createGeometryClient({endpoints:['/api/interpreter'],now:()=>time,wait:async ms=>{time+=ms;},fetch:async url=>{assert.equal(url,'/api/interpreter');calls++;return Response.json({retryScope:'service',error:'Map-data services could not complete this request (server: HTTP 504).'},{status:503,headers:{'Retry-After':'30'}});}});
   await assert.rejects(client('gateway',new AbortController().signal,()=>{}),/HTTP 504.*Loaded layers are kept/);assert.equal(calls,6);assert.ok(time>=1700000150000);
 });
 test('gateway cooldown failures can recover after two unsuccessful attempts',async()=>{
   let time=1700000000000,calls=0;
   const client=createGeometryClient({endpoints:['/api/interpreter'],now:()=>time,wait:async ms=>{time+=ms;},fetch:async()=>++calls<3?Response.json({error:'Cooling down'},{status:503,headers:{'Retry-After':'30'}}):Response.json({elements:[]})});
   assert.deepEqual(await client('gateway-recovery',new AbortController().signal,()=>{}),[]);assert.equal(calls,3);assert.ok(time>=1700000060000);
+});
+test('gateway key and monthly quota errors stop retries even though HTTP status is 503',async()=>{
+  let calls=0;
+  const client=createGeometryClient({endpoints:['/api/interpreter'],fetch:async()=>{calls++;return Response.json({error:'Check provider key',retryable:false,retryScope:'configuration'},{status:503});}});
+  await assert.rejects(client('managed',new AbortController().signal,()=>{}),error=>!error.retryable && !error.canSplit);
+  assert.equal(calls,1);
+});
+test('a gateway concurrency deferral does not count as a submitted query',async()=>{
+  const client=createGeometryClient({endpoints:['/api/interpreter'],fetch:async()=>Response.json({error:'Another query is running',retryScope:'service',attempted:false},{status:503,headers:{'Retry-After':'3'}})});
+  await assert.rejects(client.attempt('managed',new AbortController().signal),error=>error.retryable && !error.attempted && !error.canSplit);
 });

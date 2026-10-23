@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {loadSceneQueries} from '../src/data/queryScheduler.ts';
 import {createGeometryClient,GeometryRequestError} from '../src/data/overpass.ts';
+import {createMapProxy} from '../server/mapProxy.ts';
 const points=[{lat:40,lng:23},{lat:40,lng:23.01},{lat:40.01,lng:23}];
 const groups=['buildings','transport','landscape','places'];
 const element={type:'way',id:1,tags:{building:'yes'}};
@@ -51,4 +52,17 @@ test('aborted old response cannot impose a cooldown or poison new boundary data'
   const old=client.attempt('old',controller.signal);controller.abort();finish(new Response('Busy',{status:429,headers:{'Retry-After':'999'}}));
   await assert.rejects(old,{name:'AbortError'});
   assert.deepEqual(await client.attempt('new',new AbortController().signal),[element]);assert.equal(calls,2);
+});
+test('end-to-end 521 outages respect cooldown across all groups without selector fan-out',async()=>{
+  let time=0;const calls=[],events=[];
+  const gateway=createMapProxy({now:()=>time,wait:async ms=>{time+=ms;},fetch:async(_url,init)=>{
+    calls.push({at:time,query:new URLSearchParams(init.body).get('data')});
+    return new Response('error code: 521',{status:521});
+  }});
+  const client=createGeometryClient({endpoints:['/api/interpreter'],now:()=>time,random:()=>0,wait:async ms=>{time+=ms;},fetch:async(_url,init)=>gateway(new Request('https://app.example/api/interpreter',init))});
+  await loadSceneQueries(points,groups,new AbortController().signal,{now:()=>time,wait:async ms=>{time+=ms;},attempt:client.attempt,onGroup:(_group,state)=>events.push(state)});
+  assert.ok(calls.length<=6);assert.ok(calls[2].at-calls[0].at>=120000);
+  assert.ok(!events.some(state=>state.message?.includes('smaller')));
+  assert.ok(events.some(state=>state.status==='waiting'));
+  assert.equal(events.filter(state=>state.status==='error').length,4);
 });

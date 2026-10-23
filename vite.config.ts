@@ -1,11 +1,14 @@
-import { defineConfig, type ViteDevServer, type PreviewServer } from "vite";
+import { defineConfig, loadEnv, type ViteDevServer, type PreviewServer } from "vite";
 import react from "@vitejs/plugin-react";
 import dts from "vite-plugin-dts";
 import { build } from 'esbuild';
-import { createMapProxy } from './server/mapProxy';
+import { createEnvironmentMapProxy } from './server/mapProxy';
 
 function configureMapServer(server: ViteDevServer | PreviewServer) {
-  const handle = createMapProxy();
+  const handle = createEnvironmentMapProxy();
+  // Server-only secrets. Never use a VITE_ prefix or include them in emitted assets.
+  const values = {...loadEnv(server.config.mode,server.config.envDir,''),...process.env};
+  const env = {MAP_DATA_PROVIDER:values.MAP_DATA_PROVIDER,OVERPASS_CH_API_KEY:values.OVERPASS_CH_API_KEY};
   server.middlewares.use('/api/interpreter', async (req, res) => {
     const controller=new AbortController();
     const disconnect=()=>{if(!res.writableEnded)controller.abort();};
@@ -15,7 +18,7 @@ function configureMapServer(server: ViteDevServer | PreviewServer) {
       for await (const chunk of req) { size += chunk.length; if (size > 65536) { res.writeHead(413).end('Boundary outline is too large.'); return; } chunks.push(chunk); }
       const origin = `http://${req.headers.host}`;
       const request = new Request(`${origin}/api/interpreter`, { signal:controller.signal, method: req.method, headers: { ...(req.headers.origin ? { Origin: req.headers.origin } : {}) }, ...(req.method === 'POST' ? { body: Buffer.concat(chunks).toString() } : {}) });
-      const response = await handle(request);
+      const response = await handle(request,env);
       res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer()));
     } catch { if(!res.destroyed) res.writeHead(502, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'The local map-data service could not finish this request.' })); }
     finally {res.off('close',disconnect);}

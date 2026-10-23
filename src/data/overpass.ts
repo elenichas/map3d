@@ -1,4 +1,5 @@
 import type { OsmElement } from './layers';
+import { isQueryFailure, isServiceFailure, serviceBackoff } from './mapFailures.ts';
 export type RequestProgress = { phase: 'loading' | 'waiting'; retryAt?: number };
 const urls = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 export class GeometryRequestError extends Error {
@@ -56,24 +57,27 @@ export function createGeometryClient(options: ClientOptions = {}) {
       signal.throwIfAborted();
       const retryAfter = retryAfterMilliseconds(response.headers?.get('Retry-After'), now());
       if (!response.ok) {
-        let detail = '', scope = '', split = false;
+        let detail = '', scope = '', split = false, rawDetail = '', retryAllowed=true, attempted=true;
         if (response.headers?.get('Content-Type')?.includes('application/json')) {
-          try { const body = await response.json(); detail = typeof body.error === 'string' ? body.error : ''; scope = body.retryScope; split = body.canSplit === true; } catch { /* Status remains usable. */ }
+          try { const body = await response.json(); detail = typeof body.error === 'string' ? body.error : ''; scope = body.retryScope; split = body.canSplit === true; retryAllowed=body.retryable!==false;attempted=body.attempted!==false; } catch { /* Status remains usable. */ }
+        } else if (response.text) {
+          rawDetail = (await response.text()).slice(0,4096);
         }
         signal.throwIfAborted();
-        const throttled = [429,406].includes(response.status), serviceWait = throttled || scope === 'service' || (response.status === 503 && !scope && retryAfter > 0);
+        const queryFailure = scope === 'query' ? split : !scope && isQueryFailure(response.status, rawDetail || detail);
+        const throttled = [429,406].includes(response.status), serviceWait = scope === 'service' || (!scope && !queryFailure && (isServiceFailure(response.status) || response.status === 500));
         if (serviceWait) {
-          if (throttled) server.rateLimits++;
-          server.notBefore = now() + Math.max(retryAfter, throttled ? Math.min(120000,30000 * 2 ** (server.rateLimits-1)) : 2000) + Math.floor(random()*1000);
+          server.rateLimits++;
+          server.notBefore = now() + Math.max(retryAfter, scope ? 2000 : serviceBackoff(server.rateLimits,response.status)) + Math.floor(random()*1000);
         }
-        const retryable = throttled || [408,500,502,503,504].includes(response.status);
+        const retryable = retryAllowed && (isServiceFailure(response.status) || [408,500].includes(response.status));
         const message = detail || (throttled ? 'Map-data services are still busy after automatic retries.' : retryable ? `Map-data servers are busy or timed out (HTTP ${response.status}).` : `The map service could not process this layer (HTTP ${response.status}).`);
-        throw new GeometryRequestError(`${message} Loaded layers are kept.`, retryable, serviceWait ? server.notBefore : now()+Math.max(retryAfter,2000), true, !serviceWait && (split || [408,500,502,504].includes(response.status)));
+        throw new GeometryRequestError(message.includes('Loaded layers are kept.')?message:`${message} Loaded layers are kept.`, retryable, serviceWait ? server.notBefore : now()+Math.max(retryAfter,2000), attempted, queryFailure);
       }
       let data: { elements?: OsmElement[]; remark?: string };
-      try { data = await response.json(); } catch { throw new GeometryRequestError('The map service returned an unreadable response. Loaded layers are kept.', true, now()+2000, true, true); }
+      try { data = await response.json(); } catch { throw new GeometryRequestError('The map service returned an unreadable response. Loaded layers are kept.', true, now()+30000); }
       signal.throwIfAborted();
-      if (!data || data.remark || !Array.isArray(data.elements)) throw new GeometryRequestError('The map service returned incomplete data. Loaded layers are kept.',true,now()+2000,true,true);
+      if (!data || data.remark || !Array.isArray(data.elements)) throw new GeometryRequestError('The map service returned incomplete data. Loaded layers are kept.',true,now()+2000,true,isQueryFailure(200,data?.remark));
       preferred = available; server.rateLimits = 0; server.notBefore = 0;
       cache.delete(query); cache.set(query,{saved:now(),elements:data.elements});
       while (cache.size > 12) cache.delete(cache.keys().next().value!);
@@ -86,7 +90,10 @@ export function createGeometryClient(options: ClientOptions = {}) {
         if(servers.length>1) error.retryAt=Math.min(error.retryAt,Math.max(now(),Math.min(...servers.map(s=>s.notBefore))));
         throw error;
       }
-      throw new GeometryRequestError(controller.signal.reason === 'timeout' ? 'Map-data servers took too long to respond. Loaded layers are kept.' : 'Could not reach the map-data servers after automatic retries. Loaded layers are kept.',true,now()+2000,true,controller.signal.reason === 'timeout',true);
+      server.rateLimits++;
+      server.notBefore = now()+serviceBackoff(server.rateLimits);
+      const retryAt=servers.length>1 ? Math.min(...servers.map(s=>Math.max(now(),s.notBefore))) : server.notBefore;
+      throw new GeometryRequestError(controller.signal.reason === 'timeout' ? 'Map-data servers took too long to respond. Loaded layers are kept.' : 'Could not reach the map-data servers after automatic retries. Loaded layers are kept.',true,retryAt,true,false,true);
     } finally { clearTimeout(timeout); signal.removeEventListener('abort',cancel); }
   }
   async function request(query: string, signal: AbortSignal, onProgress: (message: string, progress?: RequestProgress) => void) {

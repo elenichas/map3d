@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import worker, { createMapProxy, validSceneQuery } from '../server/mapProxy.ts';
+import worker, { createMapProxy, createEnvironmentMapProxy, validSceneQuery } from '../server/mapProxy.ts';
 import { geometryQuery, layerGroups } from '../src/data/layers.ts';
 
 const points = [{lat:40.7148,lng:-74.009},{lat:40.7148,lng:-74.007},{lat:40.716,lng:-74.007}];
@@ -116,4 +116,110 @@ test('query failures carry bounded diagnostics without a long inherited service 
 test('older runtimes without incoming disconnect signals still load geometry',async()=>{
   const req=request();Object.defineProperty(req,'signal',{value:undefined});
   assert.equal((await harness(success).handle(req)).status,200);
+});
+
+test('521 plus a failed connection is a service outage, never a smaller-query retry',async()=>{
+  const h=harness(url=>{if(url.includes('overpass-api.de'))return new Response('error code: 521',{status:521});throw new TypeError('fetch failed');});
+  const res=await h.handle(request()),body=await res.json();
+  assert.equal(body.retryScope,'service');assert.equal(body.canSplit,false);
+  assert.deepEqual(body.failures.map(f=>f.status),[521,'connection failure']);
+  assert.ok(Number(res.headers.get('Retry-After'))>=30);
+  await h.handle(request(geometryQuery(points,'transport')));assert.equal(h.calls.length,2);
+  h.advance(31000);await h.handle(request());assert.equal(h.calls.length,3);
+  assert.match(h.calls[2].url,/private.coffee/);
+});
+test('generic 502 capacity errors back off without splitting or retrying each layer immediately',async()=>{
+  const h=harness(()=>new Response('All query workers are busy and the request queue is full',{status:502}));
+  const res=await h.handle(request()),body=await res.json();
+  assert.equal(body.retryScope,'service');assert.equal(body.canSplit,false);
+  assert.ok(Number(res.headers.get('Retry-After'))>=29);
+  await h.handle(request(geometryQuery(points,'landscape')));assert.equal(h.calls.length,2);
+});
+test('unreadable gateway responses cannot trigger expensive selector fan-out',async()=>{
+  const h=harness(()=>new Response('<html>Service unavailable</html>'));
+  const res=await h.handle(request()),body=await res.json();
+  assert.equal(body.retryScope,'service');assert.equal(body.canSplit,false);
+});
+test('a transport deadline and 521 do not masquerade as an Overpass query timeout',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  let started=false;
+  const h=harness((url,init)=>{
+    if(url.includes('private.coffee'))return new Response('error code: 521',{status:521});
+    started=true;
+    return new Promise((_,reject)=>init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true}));
+  });
+  const pending=h.handle(request());
+  while(!started)await new Promise(resolve=>setImmediate(resolve));
+  t.mock.timers.tick(35000);
+  const response=await pending,body=await response.json();
+  assert.deepEqual(body.failures.map(f=>f.status),['timeout',521]);
+  assert.equal(body.canSplit,false);assert.equal(body.retryScope,'service');
+  assert.ok(Number(response.headers.get('Retry-After'))>=29);
+});
+
+test('overpass.ch sends its secret only as an authentication header and preserves all layer queries',async()=>{
+  let time=0;const calls=[];
+  const handle=createMapProxy({provider:'overpass-ch',apiKey:'test-private-key',now:()=>time,wait:async ms=>{time+=ms;},fetch:async(url,init)=>{calls.push({url,init,at:time});return success();}});
+  for(const group of layerGroups) {
+    const q=geometryQuery(points,group.id),res=await handle(request(q));
+    assert.equal(res.status,200);assert.equal(res.headers.get('X-Map-Source'),'api.overpass.ch');
+    assert.ok(!(await res.text()).includes('test-private-key'));
+    const call=calls.at(-1);assert.equal(call.url,'https://api.overpass.ch/v1/interpreter');
+    assert.equal(new Headers(call.init.headers).get('X-API-Key'),'test-private-key');
+    assert.equal(new URLSearchParams(call.init.body).get('data'),q);
+    assert.equal(call.init.redirect,'manual');
+  }
+  assert.equal(calls.length,4);assert.ok(calls[1].at-calls[0].at>=2100);
+});
+test('missing or invalid provider settings fail closed without querying public endpoints',async()=>{
+  for(const config of [{provider:'overpass-ch'},{provider:'overpass-ch',apiKey:'bad\nkey'},{provider:'typo'}]) {
+    let calls=0;
+    const res=await createMapProxy({...config,fetch:async()=>{calls++;return success();}})(request());
+    assert.equal(res.status,503);assert.equal((await res.json()).retryable,false);assert.equal(calls,0);
+  }
+});
+test('managed authentication and quota failures are terminal, redacted, and remembered across layers',async()=>{
+  for(const [status,code] of [[401,'unauthorized'],[403,'forbidden_referer'],[403,'key_scope'],[429,'quota_exceeded']]) {
+    let calls=0;
+    const handle=createMapProxy({apiKey:'secret-test-value',fetch:async()=>{calls++;return Response.json({error:code,message:'secret-test-value'},{status});}});
+    const res=await handle(request()),text=await res.text(),body=JSON.parse(text);
+    assert.equal(body.retryable,false);assert.equal(body.canSplit,false);assert.ok(!text.includes('secret-test-value'));
+    if(code==='key_scope')assert.match(body.error,/All APIs/);
+    await handle(request(geometryQuery(points,'transport')));assert.equal(calls,1);
+  }
+});
+test('managed transient failure honors cooldown without falling back to public servers',async()=>{
+  let time=0,calls=0;
+  const handle=createMapProxy({apiKey:'test-key',now:()=>time,wait:async ms=>{time+=ms;},fetch:async url=>{
+    assert.equal(url,'https://api.overpass.ch/v1/interpreter');calls++;
+    return calls===1?Response.json({error:'server_busy'},{status:503,headers:{'Retry-After':'45'}}):success();
+  }});
+  const res=await handle(request());assert.equal(res.status,503);assert.ok(Number(res.headers.get('Retry-After'))>=45);
+  const cooling=await handle(request());assert.equal((await cooling.json()).attempted,false);assert.equal(calls,1);
+  time+=46000;assert.equal((await handle(request())).status,200);assert.equal(calls,2);
+});
+test('managed concurrent queries share identical work and defer distinct work without consuming a retry',async()=>{
+  let finish,calls=0;
+  const handle=createMapProxy({apiKey:'test-key',fetch:async()=>{calls++;return new Promise(resolve=>finish=resolve);}});
+  const a=handle(request());
+  while(!finish)await new Promise(resolve=>setImmediate(resolve));
+  const b=handle(request());
+  const busy=await handle(request(geometryQuery(points,'landscape')));
+  assert.equal(busy.status,503);assert.equal((await busy.json()).attempted,false);assert.equal(calls,1);
+  finish(success());assert.equal((await a).status,200);assert.equal((await b).status,200);
+});
+test('provider caches are isolated and changing a runtime secret resets rejected authentication',async()=>{
+  const cache=memoryCache();let calls=0;
+  const configured=createEnvironmentMapProxy({cache,wait:async()=>{},fetch:async(_url,init)=>{
+    calls++;return new Headers(init.headers).get('X-API-Key')==='old-key'?Response.json({error:'unauthorized'},{status:401}):success();
+  }});
+  assert.equal((await configured(request(),{})).status,200);
+  const denied=await configured(request(),{OVERPASS_CH_API_KEY:'old-key'});assert.equal((await denied.json()).retryable,false);
+  const fresh=await configured(request(),{OVERPASS_CH_API_KEY:'new-key'});assert.equal(fresh.status,200);assert.equal(calls,3);
+  assert.equal(cache.entries.size,2);
+  for(const cacheKey of cache.entries.keys())assert.ok(!cacheKey.includes('new-key'));
+});
+test('managed transport errors never return echoed credentials to the browser',async()=>{
+  const handle=createMapProxy({apiKey:'test-sensitive-key',fetch:async()=>{throw Error('failed request X-API-Key: test-sensitive-key');}});
+  const res=await handle(request());assert.ok(!(await res.text()).includes('test-sensitive-key'));
 });
