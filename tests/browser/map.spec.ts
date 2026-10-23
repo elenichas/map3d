@@ -86,6 +86,8 @@ async function startRectangle(page: import('@playwright/test').Page) {
 }
 async function selectRectangle(page: import('@playwright/test').Page) {
   await startRectangle(page);
+  const expand = page.getByRole('button',{name:'Expand scene layers',exact:true});
+  if (await expand.isVisible()) await expand.click();
   await expect(page.locator(".layer-hint")).toContainText("Scene ready", {timeout:15000});
 }
 async function mockLayers(page: import('@playwright/test').Page) {
@@ -140,7 +142,8 @@ test('themes and scene lighting are independent, persist, and share the top tool
   await page.getByRole('button',{name:'Night lighting',exact:true}).click();
   await page.setViewportSize({width:390,height:844});
   await page.getByRole('button',{name:'Minimize scene layers'}).click();
-  const header=(await page.locator('header').boundingBox())!;
+  await page.getByRole('button',{name:'Display and export settings'}).click();
+  const header=(await page.locator('#display-settings').boundingBox())!;
   for(const name of ['Download GLB','Download OBJ','Download raw data (JSON)','Night lighting','Dark theme']) {
     const button=(await page.getByRole('button',{name,exact:true}).boundingBox())!;
     expect(button.x).toBeGreaterThanOrEqual(0);expect(button.x+button.width).toBeLessThanOrEqual(390);
@@ -149,6 +152,7 @@ test('themes and scene lighting are independent, persist, and share the top tool
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({path:'test-results/theme-mobile-night.png'});
   await page.reload();
+  await page.getByRole('button',{name:'Display and export settings'}).click();
   await expect(page.getByRole('button',{name:'Dark theme',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(page).toHaveURL('/viewer');
   await expect(page.locator('.layer-hint')).toContainText('Scene ready');
@@ -482,7 +486,9 @@ test('OBJ exports visible geometry and raw JSON keeps hidden source data and bou
   expect(ring[0][0]).toBeLessThan(-70);expect(ring[0][1]).toBeGreaterThan(40);
   expect(Object.values(data.scene.batches).every((b:any)=>b.status==='ready')).toBe(true);
   await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'Display and export settings'}).click();
   await expect(page.getByRole('button',{name:'Download OBJ'})).toBeVisible();
+  await page.getByRole('button',{name:'Close display settings'}).click();
   await expect(page.getByRole('button',{name:'Back to map'})).toBeVisible();
   const main=await page.locator('main').boundingBox();expect(main!.width).toBe(390);
   await page.screenshot({path:'test-results/viewer-mobile.png'});

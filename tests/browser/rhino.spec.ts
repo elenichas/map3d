@@ -55,6 +55,7 @@ for(const batched of [false,true]) test(`Rhino download retains hidden geometry,
   expect(wasmRequests).toBeGreaterThan(0);expect(errors).toEqual([]);
   await expect(page.getByRole('status').filter({hasText:'Rhino downloaded'})).toBeVisible();
   await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'Display and export settings'}).click();
   const header=(await page.locator('header').boundingBox())!,button=(await page.getByRole('button',{name:'Download Rhino 3DM'}).boundingBox())!;
   expect(button.x).toBeGreaterThanOrEqual(0);expect(button.x+button.width).toBeLessThanOrEqual(390);
   expect(await page.locator('header').evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);

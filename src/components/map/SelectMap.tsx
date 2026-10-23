@@ -17,10 +17,17 @@ function Controls({ mode, points, onChange, onDrawingChange, target }: Props) {
   const cancel = () => { setDraft([]); setCursor(null); };
   const finishPolygon = () => { onChange(draft); cancel(); };
   useEffect(() => {
-    const observer = new ResizeObserver(() => map.invalidateSize({ animate: false }));
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+      // Opening the phone drawer reduces the map height after a boundary is drawn.
+      // Reframe it in the remaining space, keeping it clear of the attribution bar.
+      if (mode === 'pan' && points.length >= 3 && window.matchMedia('(max-width: 700px)').matches && map.getContainer().clientHeight > 0) {
+        map.fitBounds(L.latLngBounds(points), { animate: false, paddingTopLeft: [20, 20], paddingBottomRight: [20, 60] });
+      }
+    });
     observer.observe(map.getContainer());
     return () => observer.disconnect();
-  }, [map]);
+  }, [map, points, mode]);
   useEffect(() => { if (target) map.flyTo(target, 16); }, [target, map]);
   useEffect(() => {
     setDraft([]); setCursor(null);
@@ -80,7 +87,7 @@ export function MapComponent(props: Props) {
   const [tileError, setTileError] = useState(false);
   const [tilesLoading, setTilesLoading] = useState(true);
   return <>
-    <MapContainer bounds={initialBounds.current} center={[40.8, -73.95]} zoom={15} style={{ height: '100%', width: '100%' }}>
+    <MapContainer attributionControl={false} bounds={initialBounds.current} center={[40.8, -73.95]} zoom={15} style={{ height: '100%', width: '100%' }}>
       <TileLayer attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" eventHandlers={{ loading: () => { setTilesLoading(true); setTileError(false); }, load: () => setTilesLoading(false), tileerror: () => setTileError(true) }}/>
       <ScaleControl position="bottomleft" imperial={false}/>
       <Controls {...props}/>

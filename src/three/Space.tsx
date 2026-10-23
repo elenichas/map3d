@@ -24,7 +24,7 @@ import { isFeatureVisible, type SublayerVisibility } from '../data/sublayers';
 import { buildTerrainGeometry } from './terrainGeometry';
 import { ScenePicking } from './ScenePicking';
 import { MarkerOcclusion } from './MarkerOcclusion';
-type Props = { features: Feature[]; points: Point[]; layers: Record<LayerName, boolean>; terrain: Terrain | null; selected: Feature | null; onSelect: (f: Feature | null) => void; reset: number; exportRequest: ExportRequest; onExport: (s: string) => void; onError: (s: string) => void; onPreparing?: (count: number) => void; children?: ReactNode; sceneLighting?: SceneLighting; sublayers?:SublayerVisibility };
+type Props = { features: Feature[]; points: Point[]; layers: Record<LayerName, boolean>; terrain: Terrain | null; selected: Feature | null; onSelect: (f: Feature | null) => void; reset: number; exportRequest: ExportRequest; onExport: (s: string) => void; onError: (s: string) => void; onPreparing?: (count: number) => void; onMeasureStart?: () => void; children?: ReactNode; sceneLighting?: SceneLighting; sublayers?:SublayerVisibility };
 function TerrainMesh({ terrain, project }: { terrain: Terrain; project: (p: { lat: number; lon: number }) => THREE.Vector2 }) {
   const geometry = useMemo(() => buildTerrainGeometry(terrain,project), [terrain, project]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -112,7 +112,7 @@ export function Space(props: Props) {
         <button aria-pressed={projection==='perspective'} onClick={()=>setProjection('perspective')}>Perspective</button>
         <button aria-pressed={projection==='isometric'} onClick={()=>setProjection('isometric')}>Isometric</button>
       </div>
-      <button className="measure-toggle" aria-label="Measure distance" aria-pressed={measuring} onClick={()=>{setMeasuring(value=>!value);cancelDraft();onSelect(null);}}><Ruler size={16}/>Measure</button>
+      <button className="measure-toggle" aria-label="Measure distance" aria-pressed={measuring} onClick={()=>{if (!measuring) props.onMeasureStart?.();setMeasuring(value=>!value);cancelDraft();onSelect(null);}}><Ruler size={16}/>Measure</button>
     </div>
     {(measuring || measurements.length>0) && <div className="measurement-panel" role="region" aria-label="Measurements">
       <div className="measurement-heading"><strong>Measure distance</strong><button aria-label="Clear measurements" title="Clear measurements" disabled={!measurements.length && !measureStart} onClick={clearMeasurements}><Trash2 size={14}/></button>{measuring && <button aria-label="Exit measure tool" title="Exit measure tool" onClick={()=>{setMeasuring(false);cancelDraft();}}><X size={15}/></button>}</div>

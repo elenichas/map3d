@@ -89,7 +89,9 @@ test('dashboard scrolls on mobile, supports dark theme and handles an empty boun
   await page.goto('/dashboard');
   await expect(page.getByText('All source batches loaded',{exact:true})).toBeVisible();
   await expect(page.locator('.site-stat').filter({hasText:'Mean building height'})).toContainText('—');
+  await page.getByRole('button',{name:'Display and export settings'}).click();
   await page.getByRole('button',{name:'Dark theme'}).click();
+  await page.getByRole('button',{name:'Close display settings'}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   expect(await page.locator('.site-dashboard').evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);

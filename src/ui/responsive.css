@@ -1,0 +1,161 @@
+/* Shared controls stay inline on desktop and move into a compact panel on touch screens. */
+.display-settings { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.compact-tools-toggle, .compact-settings-heading { display: none; }
+.sidebar-collapsed .drawer-top > span { display: none; }
+.drawer-content, .layer-list, .inspector { overscroll-behavior: contain; }
+
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: 280px minmax(0, 1fr); }
+  .workspace.viewer-mode, .workspace.dashboard-mode { grid-template-columns: minmax(0, 1fr); }
+  .app-header { display: flex; gap: 12px; padding: 8px 20px; }
+  .app-header .top-toolbar { display: flex; gap: 8px; margin-left: auto; }
+  .compact-tools-toggle { display: inline-flex; min-height: 44px; }
+  .app-header .dashboard-link { min-height: 44px; min-width: 44px; }
+  .app-header .display-settings { display: none; }
+  .app-header .display-settings.open {
+    display: flex; flex-direction: column; align-items: stretch; gap: 18px;
+    position: absolute; right: 16px; top: calc(100% + 8px); width: min(360px, calc(100vw - 24px));
+    padding: 16px; max-height: calc(100dvh - 100px); overflow-y: auto; overscroll-behavior: contain;
+    border: 1px solid var(--border); border-radius: 16px; background: var(--panel);
+    box-shadow: 0 12px 40px var(--shadow-strong);
+  }
+  .compact-settings-heading { display: flex; justify-content: space-between; align-items: center; }
+  .compact-settings-heading button { min-width: 44px; min-height: 44px; border: 0; }
+  .app-header .toolbar-control { align-self: stretch; gap: 8px; }
+  .app-header .toolbar-label { display: block; font-size: 11px; }
+  .app-header .segmented-control button { flex: 1; min-height: 44px; font-size: 13px; }
+  .app-header .segmented-control button span, .app-header .raw-data-label { display: inline; }
+  .app-header .viewer-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .app-header .viewer-toolbar button { min-height: 44px; font-size: 12px; }
+  .app-header .viewer-toolbar button:last-child { grid-column: span 2; }
+  .app-header .viewer-toolbar .lucide-download { display: block; }
+  .app-header .toolbar-divider { display: none; }
+  .search input { font-size: 16px; }
+  .drawer-toggle, .search button, .boundary-summary button, .inspector .close { min-width: 44px; min-height: 44px; }
+  .layer-panel .layer-panel-heading button { width: 44px; height: 44px; min-height: 44px; }
+  .layer-panel .sublayer-expander { width: 36px; min-width: 36px; min-height: 44px; }
+  .layer-panel .layer-row, .layer-panel .sublayer-row { min-height: 48px; }
+  .layer-row input, .sublayer-row input { width: 18px; height: 18px; }
+  .layer-panel .layer-row { font-size: 13px; }
+  .layer-row small { font-size: 11px; }
+  .inspector { max-height: calc(100% - 215px); }
+  .inspector h2 { padding-right: 20px; }
+  .model-tools { left: 16px; transform: none; }
+  .viewer-mode .location-pill { display: none; }
+  .model-tools button { min-height: 40px; }
+  .back-to-map { min-height: 44px; }
+}
+
+/* Phone map: a real map viewport above a bounded, independently scrolling drawer. */
+@media (max-width: 700px) {
+  .workspace, .workspace.sidebar-collapsed {
+    height: 100dvh; min-height: 0; grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: calc(64px + env(safe-area-inset-top)) minmax(0, 1fr) min(43dvh, 380px);
+  }
+  .workspace.sidebar-collapsed { grid-template-rows: calc(64px + env(safe-area-inset-top)) minmax(0, 1fr) calc(58px + env(safe-area-inset-bottom)); }
+  .workspace.viewer-mode, .workspace.dashboard-mode {
+    height: 100dvh; min-height: 0; grid-template-rows: calc(64px + env(safe-area-inset-top)) minmax(0, 1fr);
+  }
+  .workspace .app-header { height: auto; grid-row: 1; padding: calc(8px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left)); }
+  .app-header .brand { font-size: 22px; gap: 8px; }
+  .app-header .brand > span:first-child { width: 32px; height: 32px; }
+  .app-header .dashboard-link span { display: none; }
+  .compact-tools-toggle { padding: 10px; font-size: 12px; }
+  .workspace > main { grid-column: 1; grid-row: 2; }
+  .workspace > .sidebar, .workspace.sidebar-collapsed > .sidebar {
+    grid-column: 1; grid-row: 3; display: flex; padding: 4px 16px max(8px, env(safe-area-inset-bottom));
+    border: 0; border-top: 1px solid var(--border); overflow: hidden; align-items: stretch;
+  }
+  .sidebar .drawer-top { height: 48px; margin: 0; justify-content: space-between; flex-shrink: 0; }
+  .sidebar-collapsed .drawer-top > span { display: block; }
+  .sidebar .drawer-content { overflow-y: auto; padding: 4px 0 12px; }
+  .sidebar section { margin-bottom: 16px; }
+  .sidebar .section-heading { margin-bottom: 8px; }
+  .sidebar .draw-tools button { flex-direction: row; padding: 10px 4px; min-height: 48px; font-size: 11px; gap: 6px; }
+  .sidebar .hint { font-size: 12px; margin-top: 8px; }
+  .sidebar .primary { min-height: 48px; flex-shrink: 0; }
+  .boundary-summary { margin-top: 10px; padding: 6px 10px; font-size: 12px; }
+  .search button { padding: 8px; }
+  .results button { font-size: 13px; min-height: 48px; }
+  .leaflet-control-zoom { margin-top: 12px !important; margin-left: 12px !important; }
+  .leaflet-control-zoom a { width: 36px !important; height: 36px !important; line-height: 36px !important; }
+  .leaflet-control-scale { margin-left: 12px !important; }
+  .viewport-top { top: 12px; left: 12px; right: 12px; }
+  .viewport-top .location-pill { display: none; }
+  .viewport-bottom { padding: 4px 10px max(4px, env(safe-area-inset-bottom)); gap: 8px; font-size: 9px; }
+  .workspace:not(.viewer-mode):not(.dashboard-mode) .viewport-bottom { padding-bottom: 4px; }
+  .viewport-credits { width: 100%; gap: 8px; justify-content: space-between; }
+  .data-guide-trigger { min-height: 32px; }
+  .finish-drawing { bottom: 64px; width: max-content; max-width: calc(100% - 24px); }
+  .finish-drawing button { min-height: 44px; font-size: 12px; }
+  .tile-warning { left: 12px; right: 12px; bottom: 52px; }
+
+  /* The viewer's drawers share one bottom position, leaving the model unobstructed until opened. */
+  .viewer-mode .viewport-top { top: 10px; justify-content: flex-start; }
+  .model-tools { top: 64px; left: 12px; right: 12px; transform: none; width: auto; flex-direction: row; gap: 4px; padding: 4px; }
+  .model-tools .segmented-control { flex: 1; min-width: 0; }
+  .model-tools .segmented-control button { flex: 1; }
+  .model-tools button { min-height: 40px; font-size: 11px; padding: 8px 6px; }
+  .viewer-mode .layer-panel, .viewer-mode .layer-panel.minimized {
+    left: 12px; right: 12px; top: auto; bottom: calc(48px + env(safe-area-inset-bottom));
+    width: auto; max-height: min(48dvh, calc(100% - 132px)); padding: 6px 12px; border-radius: 14px; z-index: 10;
+  }
+  .layer-panel-heading h2 { font-size: 13px; }
+  .layer-panel-content > .layer-hint { margin: 6px 0 10px; font-size: 11px; }
+  .viewer-mode .inspector {
+    left: 12px; right: 12px; top: auto; bottom: calc(48px + env(safe-area-inset-bottom));
+    width: auto; max-height: min(48dvh, calc(100% - 132px)); padding: 20px; z-index: 11; border: 1px solid var(--border);
+  }
+  .inspector dl { font-size: 12px; }
+  .scale-legend { left: 12px; bottom: calc(118px + env(safe-area-inset-bottom)); padding: 8px 10px; }
+  .orientation-gizmo { right: 12px; bottom: calc(118px + env(safe-area-inset-bottom)); width: 120px; }
+  .orientation-gizmo select { min-height: 36px; font-size: 11px; }
+  .measurement-panel { top: 124px; left: 12px; right: 12px; width: auto; max-height: calc(100% - 245px); overflow-y: auto; padding: 10px 12px; }
+  .measurement-panel .measurement-heading strong { font-size: 12px; }
+  .measurement-panel .measurement-heading button, .measurement-panel li button { min-width: 36px; min-height: 36px; }
+  .measurement-panel > small { display: none; }
+  .viewer-mode main:has(.layer-panel:not(.minimized)) .orientation-gizmo,
+  .viewer-mode main:has(.layer-panel:not(.minimized)) .scale-legend,
+  .viewer-mode main:has(.inspector) .orientation-gizmo,
+  .viewer-mode main:has(.inspector) .scale-legend { visibility: hidden; }
+  .viewer-mode .scene-notice { bottom: calc(118px + env(safe-area-inset-bottom)); left: 12px; right: 12px; max-width: none; padding: 8px 10px; font-size: 11px; z-index: 9; }
+  .viewer-mode main:has(.scene-notice) .orientation-gizmo,
+  .viewer-mode main:has(.scene-notice) .scale-legend { visibility: hidden; }
+  .viewer-mode .scene-notice button { min-height: 36px; }
+  .viewer-mode .viewer-actions, .viewer-mode:has(.scene-notice) .viewer-actions { top: 124px; bottom: auto; left: 12px; right: 12px; max-width: none; }
+  .viewer-feedback { max-width: none; }
+  .data-guide-header button { min-height: 44px; min-width: 44px; }
+  .dashboard-mode .site-dashboard { padding: 20px 16px calc(76px + env(safe-area-inset-bottom)); }
+  .dashboard-mode .site-stats { gap: 10px; }
+  .dashboard-mode .site-stat { padding: 14px; }
+  .dashboard-mode .site-stat-value { font-size: 25px; overflow-wrap: anywhere; }
+  .dashboard-mode .site-page-actions button, .dashboard-mode .site-unit-control button { min-height: 44px; }
+  .dashboard-mode .site-cover-content { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-mode .site-height-chart { gap: 6px; }
+  .dashboard-mode .site-height-summary { flex-wrap: wrap; }
+  .dashboard-mode .site-page-heading h1 { overflow-wrap: anywhere; }
+}
+
+/* Landscape phones need the vertical space for the map, rather than a bottom drawer. */
+@media (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) {
+  .workspace:not(.viewer-mode):not(.dashboard-mode) { grid-template-columns: 260px minmax(0, 1fr); grid-template-rows: 60px minmax(0, 1fr); }
+  .workspace:not(.viewer-mode):not(.dashboard-mode) > .sidebar { grid-column: 1; grid-row: 2; padding: 4px 12px; }
+  .workspace:not(.viewer-mode):not(.dashboard-mode) > main { grid-column: 2; grid-row: 2; }
+  .workspace.sidebar-collapsed:not(.viewer-mode):not(.dashboard-mode) { grid-template-columns: 56px minmax(0, 1fr); }
+  .sidebar-collapsed .drawer-top > span { display: none; }
+  .sidebar .drawer-content { overflow-y: auto; }
+  .viewer-mode .layer-panel, .viewer-mode .layer-panel.minimized { max-height: calc(100% - 110px); top: 72px; bottom: auto; width: 240px; left: 12px; right: auto; }
+  .viewer-mode .inspector { top: 72px; bottom: auto; max-height: calc(100% - 115px); width: 280px; left: auto; right: 12px; }
+  .model-tools { top: 12px; left: 12px; right: auto; width: auto; flex-direction: row; }
+  .viewer-mode .viewport-top { justify-content: flex-end; }
+  .orientation-gizmo { bottom: 48px; }
+  .gizmo-stage { display: none; }
+  .scale-legend { bottom: 48px; }
+  .measurement-panel { top: 72px; left: auto; right: 12px; width: 280px; max-height: calc(100% - 120px); }
+}
+
+/* Tile availability feedback must never cover the polygon's completion action. */
+.map-viewport:has(.finish-drawing) .tile-warning { bottom: 122px; pointer-events: none; }
+@media (max-width: 700px) {
+  .sidebar .primary { position: sticky; bottom: 0; z-index: 1; box-shadow: 0 -6px 18px var(--panel); }
+}

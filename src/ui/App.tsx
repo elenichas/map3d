@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined } from 'lucide-react';
+import { Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined, SlidersHorizontal } from 'lucide-react';
 import { MapComponent, type Point, type DrawMode } from '../components/map/SelectMap';
 import { Space, type ExportRequest } from '../three/Space';
 import { downloadFile } from '../data/download';
@@ -25,7 +25,18 @@ function App() {
   useEffect(()=>{ document.documentElement.dataset.theme=theme; savePreference('map3d.theme',theme); },[theme]);
   useEffect(()=>{ savePreference('map3d.sceneLighting',sceneLighting); },[sceneLighting]);
   const [drawerMinimized, setDrawerMinimized] = useState(false);
-  const [layersMinimized, setLayersMinimized] = useState(false);
+  const [layersMinimized, setLayersMinimized] = useState(() => window.matchMedia('(max-width: 700px)').matches);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const toolsButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!toolsOpen) return;
+    const dismiss = (event: PointerEvent) => { if (!toolbarRef.current?.contains(event.target as Node)) setToolsOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setToolsOpen(false); toolsButtonRef.current?.focus(); } };
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); };
+  }, [toolsOpen]);
   const [preparing, setPreparing] = useState(0);
   const [mode, setMode] = useState<DrawMode>('pan');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -56,7 +67,7 @@ function App() {
   const {cancel:cancelRhinoExport}=rhinoExport;
   useEffect(()=>{cancelRhinoExport();},[points,view,cancelRhinoExport]);
   const [selection, setSelection] = useState<{points: Point[]; feature: Feature | null}>();
-  const setSelected = useCallback((feature: Feature | null) => setSelection({points, feature}), [points]);
+  const setSelected = useCallback((feature: Feature | null) => { setSelection({points, feature}); if (feature && window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }, [points]);
   const [layers, setLayers] = useState<Record<LayerName, boolean>>(initialLayers);
   const [sublayers,setSublayers]=useState<SublayerVisibility>({});
   const selected = useMemo(() => {
@@ -73,7 +84,7 @@ function App() {
     setPlaces([]); setSearching(false); setSearchError(''); setSearchedPlace(undefined);
     return () => { searchRequest.current?.abort(); };
   }, [points, view]);
-  const updateBoundary = (p: Point[]) => { updateRoute({ points: p, location: boundaryLabel(p), locationBoundary: undefined }); setIsDrawing(false); setStatusData({points:p, view, value:p.length ? '' : 'Boundary cleared.'}); setErrorData(undefined); setMode('pan'); };
+  const updateBoundary = (p: Point[]) => { setDrawerMinimized(false); updateRoute({ points: p, location: boundaryLabel(p), locationBoundary: undefined }); setIsDrawing(false); setStatusData({points:p, view, value:p.length ? '' : 'Boundary cleared.'}); setErrorData(undefined); setMode('pan'); };
   const previousBoundary = useRef(points);
   useEffect(() => {
     const changed = previousBoundary.current !== points;
@@ -86,7 +97,7 @@ function App() {
       startLayers(priority.map(group => group.id));
     }
   }, [points, view, sceneStarted, startLayers, layers, setSelected]);
-  useEffect(() => { setMode('pan'); setSelection(undefined); setDrawerMinimized(false); setStatusData(undefined); setErrorData(undefined); }, [view]);
+  useEffect(() => { setMode('pan'); setSelection(undefined); setToolsOpen(false); setDrawerMinimized(false); setLayersMinimized(window.matchMedia('(max-width: 700px)').matches); setStatusData(undefined); setErrorData(undefined); }, [view]);
   const search = async (e: React.FormEvent) => {
     e.preventDefault(); if (!query.trim()) return;
     searchRequest.current?.abort(); const controller = new AbortController(); searchRequest.current = controller;
@@ -174,8 +185,11 @@ function App() {
   return <div className={`workspace${view === '3d' ? ' viewer-mode' : view === 'dashboard' ? ' dashboard-mode' : drawerMinimized ? ' sidebar-collapsed' : ''}`}>
     <header className="app-header">
       <a className="brand" href="/map" onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) { event.preventDefault(); returnToMap(); } }} aria-label="Map3d home"><span><Box size={23}/></span>map3d</a>
-      <div className="top-toolbar" role="toolbar" aria-label="Display and export tools">
+      <div ref={toolbarRef} className="top-toolbar" role="toolbar" aria-label="Display and export tools">
         <button className="dashboard-link" aria-label="Site dashboard" aria-current={view === 'dashboard' ? 'page' : undefined} disabled={points.length < 3 || isDrawing} onClick={() => navigate('dashboard')} title="Analyze the selected boundary"><ChartNoAxesCombined size={16}/><span>Site dashboard</span></button>
+        <button ref={toolsButtonRef} className="compact-tools-toggle" aria-label="Display and export settings" aria-expanded={toolsOpen} aria-controls="display-settings" onClick={() => setToolsOpen(value => !value)}><SlidersHorizontal size={18}/><span>Tools</span></button>
+        <div id="display-settings" className={`display-settings${toolsOpen ? ' open' : ''}`}>
+        <div className="compact-settings-heading"><h2>Display & exports</h2><button aria-label="Close display settings" onClick={() => { setToolsOpen(false); toolsButtonRef.current?.focus(); }}><X size={18}/></button></div>
         <div className="toolbar-control theme-control" role="group" aria-label="Interface theme">
           <span className="toolbar-label">Appearance</span>
           <div className="segmented-control">
@@ -203,11 +217,12 @@ function App() {
             </div>
           </div>
         </>}
+        </div>
       </div>
     </header>
     {view === 'map' && <aside className="sidebar" aria-label="Map tools">
       <div className="drawer-top">
-        {!drawerMinimized && <span>Map tools</span>}
+        <span>{drawerMinimized && mode !== 'pan' ? `Draw ${mode} · tap the map` : 'Map tools'}</span>
         <button className="drawer-toggle" aria-label={drawerMinimized ? 'Expand map tools' : 'Minimize map tools'} title={drawerMinimized ? 'Expand map tools' : 'Minimize map tools'} aria-expanded={!drawerMinimized} aria-controls="map-tools-content" onClick={() => setDrawerMinimized(value => !value)}>{drawerMinimized ? <PanelLeftOpen size={19}/> : <PanelLeftClose size={19}/>}</button>
       </div>
       <div id="map-tools-content" className="drawer-content" hidden={drawerMinimized}>
@@ -222,8 +237,8 @@ function App() {
         </section>
         <section>
           <div className="section-heading"><h2>Boundary</h2></div>
-          <div className="draw-tools">{([{ id: 'pan', label: 'Explore', icon: Hand }, { id: 'rectangle', label: 'Rectangle', icon: RectangleHorizontal }, { id: 'polygon', label: 'Polygon', icon: Pentagon }] as const).map(tool => <button key={tool.id} aria-pressed={mode === tool.id} onClick={() => setMode(tool.id)}><tool.icon size={21}/>{tool.label}</button>)}</div>
-          <p className="hint">{mode === 'rectangle' ? 'Click two opposite corners. Esc cancels.' : mode === 'polygon' ? 'Click vertices, then finish or click the first point. Esc cancels.' : 'Choose a tool to draw or replace the boundary.'}</p>
+          <div className="draw-tools">{([{ id: 'pan', label: 'Explore', icon: Hand }, { id: 'rectangle', label: 'Rectangle', icon: RectangleHorizontal }, { id: 'polygon', label: 'Polygon', icon: Pentagon }] as const).map(tool => <button key={tool.id} aria-pressed={mode === tool.id} onClick={() => { setMode(tool.id); if (tool.id !== 'pan' && window.matchMedia('(max-width: 700px)').matches) setDrawerMinimized(true); }}><tool.icon size={21}/>{tool.label}</button>)}</div>
+          <p className="hint">{mode === 'rectangle' ? 'Tap two opposite corners to draw a rectangle.' : mode === 'polygon' ? 'Tap each corner, then finish or tap the first point.' : 'Choose a tool to draw or replace the boundary.'}</p>
           {points.length > 0 && <div className="boundary-summary"><span><i/>Boundary selected <small>{area.toFixed(2)} km² bounding area</small></span><button aria-label="Clear boundary" onClick={() => updateBoundary([])}><X size={16}/></button></div>}
         </section>
         <button className="primary" disabled={points.length < 3 || loading || isDrawing} onClick={generate}>
@@ -242,14 +257,14 @@ function App() {
       </div>}
       <div className="viewport">
         <div className="map-viewport" hidden={view !== 'map'}><MapComponent mode={mode} points={points} onChange={updateBoundary} onDrawingChange={setIsDrawing} target={target}/></div>
-        {view === '3d' && <Space key={boundaryKey(points)} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} sceneLighting={sceneLighting}/>}
+        {view === '3d' && <Space key={boundaryKey(points)} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} onMeasureStart={() => { if (window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }} sceneLighting={sceneLighting}/>}
         {view === 'dashboard' && <Suspense fallback={<div className="site-calculating">Opening site dashboard…</div>}><SiteDashboard key={boundaryKey(points)} points={points} location={location} data={sceneLayers} analysis={analysis} onMap={returnToMap} onViewer={generate}/></Suspense>}
       </div>
       {view === '3d' && <>
         <div className={`layer-panel${layersMinimized ? ' minimized' : ''}`}>
           <div className="layer-panel-heading">
             <Layers size={16}/><h2>Scene layers</h2>
-            <button aria-label={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} title={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} aria-expanded={!layersMinimized} aria-controls="scene-layers-content" onClick={() => setLayersMinimized(value => !value)}>{layersMinimized ? <ChevronDown size={17}/> : <ChevronUp size={17}/>}</button>
+            <button aria-label={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} title={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} aria-expanded={!layersMinimized} aria-controls="scene-layers-content" onClick={() => { if (layersMinimized && window.matchMedia('(max-width: 700px)').matches) setSelected(null); setLayersMinimized(value => !value); }}>{layersMinimized ? <ChevronDown size={17}/> : <ChevronUp size={17}/>}</button>
           </div>
           <div id="scene-layers-content" className="layer-panel-content" hidden={layersMinimized}>
             <p className="layer-hint" aria-live="polite">{sceneMessage}</p>
