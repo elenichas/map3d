@@ -2,7 +2,7 @@ import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import { Canvas, useThree } from '@react-three/fiber';
 import { Grid } from '@react-three/drei';
 import * as THREE from 'three';
-import { Ruler, Trash2, X } from 'lucide-react';
+import { Ruler, Trash2, X, Maximize2 } from 'lucide-react';
 import { sceneColors } from './palette';
 import { ViewerNavigation, type ViewRequest } from './ViewerNavigation';
 import { Measurements, type Measurement, type MeasurementInput } from './Measurements';
@@ -24,7 +24,7 @@ import { isFeatureVisible, type SublayerVisibility } from '../data/sublayers';
 import { buildTerrainGeometry } from './terrainGeometry';
 import { ScenePicking } from './ScenePicking';
 import { MarkerOcclusion } from './MarkerOcclusion';
-type Props = { features: Feature[]; points: Point[]; layers: Record<LayerName, boolean>; terrain: Terrain | null; selected: Feature | null; onSelect: (f: Feature | null) => void; reset: number; exportRequest: ExportRequest; onExport: (s: string) => void; onError: (s: string) => void; onPreparing?: (count: number) => void; onMeasureStart?: () => void; children?: ReactNode; sceneLighting?: SceneLighting; sublayers?:SublayerVisibility };
+type Props = { features: Feature[]; points: Point[]; layers: Record<LayerName, boolean>; terrain: Terrain | null; selected: Feature | null; onSelect: (f: Feature | null) => void; reset: number; exportRequest: ExportRequest; onExport: (s: string) => void; onError: (s: string) => void; onPreparing?: (count: number) => void; onMeasureStart?: () => void; onFocus?: () => void; children?: ReactNode; sceneLighting?: SceneLighting; sublayers?:SublayerVisibility };
 function TerrainMesh({ terrain, project }: { terrain: Terrain; project: (p: { lat: number; lon: number }) => THREE.Vector2 }) {
   const geometry = useMemo(() => buildTerrainGeometry(terrain,project), [terrain, project]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -114,6 +114,7 @@ export function Space(props: Props) {
       </div>
       <button className="measure-toggle" aria-label="Measure distance" aria-pressed={measuring} onClick={()=>{if (!measuring) props.onMeasureStart?.();setMeasuring(value=>!value);cancelDraft();onSelect(null);}}><Ruler size={16}/>Measure</button>
       <div className="view-direction-control" role="group" aria-label="View orientation"><select aria-label="View direction" value="" onChange={event=>{if(event.target.value) requestView(event.target.value as ViewDirection);}}><option value="" disabled>View</option><option value="iso">Isometric angle</option><option value="top">Top · north up</option><option value="front">Front · from south</option><option value="back">Back · from north</option><option value="left">Left · from west</option><option value="right">Right · from east</option><option value="bottom">Bottom</option></select></div>
+      {props.onFocus && <button className="focus-view-button" aria-label="Focus view" title="Hide interface for a full-window 3D view" onClick={()=>{setMeasuring(false);cancelDraft();props.onFocus?.();}}><Maximize2 size={15}/></button>}
     </div>
     {(measuring || measurements.length>0) && <div className="measurement-panel" role="region" aria-label="Measurements">
       <div className="measurement-heading"><strong>Measure distance</strong><button aria-label="Clear measurements" title="Clear measurements" disabled={!measurements.length && !measureStart} onClick={clearMeasurements}><Trash2 size={14}/></button>{measuring && <button aria-label="Exit measure tool" title="Exit measure tool" onClick={()=>{setMeasuring(false);cancelDraft();}}><X size={15}/></button>}</div>

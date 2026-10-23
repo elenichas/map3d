@@ -29,6 +29,16 @@ for(const size of [{width:320,height:568},{width:390,height:844},{width:768,heig
     await expect(page.locator('canvas')).toBeVisible();
     await withinScreen(page,page.getByRole('button',{name:'Back to map',exact:true}));
     await withinScreen(page,page.getByRole('toolbar',{name:'Model navigation and measurement'}));
+    const canvas=await page.locator('canvas').elementHandle();
+    await page.getByRole('button',{name:'Focus view',exact:true}).click();
+    await expect(page.locator('.app-header')).toBeHidden();
+    await expect(page.locator('.layer-panel')).toBeHidden();
+    await expect.poll(async () => (await page.locator('canvas').boundingBox())!.height).toBe(size.height);
+    await page.getByRole('button',{name:'Exit focus view',exact:true}).click();
+    expect(await canvas!.evaluate(el=>el===document.querySelector('canvas'))).toBe(true);
+    await page.getByRole('button',{name:'Focus view',exact:true}).click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.app-header')).toBeVisible();
     await expect(page.locator('.app-header').getByRole('button',{name:'Back to map',exact:true})).toBeVisible();
     if (size.width <= 700 || size.height <= 500) {
       const toolbar=(await page.locator('.model-tools').boundingBox())!;
@@ -36,14 +46,20 @@ for(const size of [{width:320,height:568},{width:390,height:844},{width:768,heig
       expect(toolbar.height).toBeLessThanOrEqual(44);
       expect(toolbar.y-main.y).toBeLessThanOrEqual(12);
       await expect(page.getByRole('group',{name:'View cube',exact:true})).toBeHidden();
+      const dropdown=(await page.getByLabel('View direction',{exact:true}).boundingBox())!;
+      const measure=(await page.getByRole('button',{name:'Measure distance',exact:true}).boundingBox())!;
+      expect(Math.abs(dropdown.y+dropdown.height/2-measure.y-measure.height/2)).toBeLessThan(1);
       await page.getByLabel('View direction',{exact:true}).selectOption('top');
       await page.getByRole('button',{name:'Measure distance',exact:true}).click();
       await expect(page.getByRole('region',{name:'Measurements'})).toBeVisible();
-      await page.getByRole('button',{name:'Exit measure tool',exact:true}).click();
+      await page.getByRole('button',{name:'Focus view',exact:true}).click();
+      await page.getByRole('button',{name:'Exit focus view',exact:true}).click();
+      await expect(page.getByRole('button',{name:'Measure distance',exact:true})).toHaveAttribute('aria-pressed','false');
     }
     const expand=page.getByRole('button',{name:'Expand scene layers'});
     if(await expand.isVisible()) await expand.click();
     await expect(page.locator('.layer-hint')).toContainText('Scene ready');
+    if (size.width === 390) await page.screenshot({path:'test-results/phone-layer-groups.png'});
     const list=page.getByRole('region',{name:'Scene layer list'});
     await page.getByRole('checkbox',{name:'Terrain',exact:true}).scrollIntoViewIfNeeded();
     await expect(page.getByRole('checkbox',{name:'Terrain',exact:true})).toBeInViewport();
@@ -62,6 +78,7 @@ for(const size of [{width:320,height:568},{width:390,height:844},{width:768,heig
     await expect(page.getByRole('button',{name:'Display and export settings'})).toBeFocused();
     await page.getByRole('button',{name:'Isometric',exact:true}).click();
     await expect(page.getByRole('button',{name:'Isometric',exact:true})).toHaveAttribute('aria-pressed','true');
+    await page.getByLabel('View direction',{exact:true}).selectOption('iso');
     await page.screenshot({path:`test-results/responsive-viewer-${size.width}.png`});
     await page.getByRole('button',{name:'Site dashboard',exact:true}).click();
     await expect(page.getByText('All source batches loaded',{exact:true})).toBeVisible();

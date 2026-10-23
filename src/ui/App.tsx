@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined, SlidersHorizontal } from 'lucide-react';
+import { Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined, SlidersHorizontal, Minimize2 } from 'lucide-react';
 import { MapComponent, type Point, type DrawMode } from '../components/map/SelectMap';
 import { Space, type ExportRequest } from '../three/Space';
 import { downloadFile } from '../data/download';
@@ -19,6 +19,12 @@ const SiteDashboard = lazy(() => import('./SiteDashboard'));
 
 type Place = { place_id: number; display_name: string; lat: string; lon: string };
 const layerNames: LayerName[] = [...vectorLayers, 'Terrain'];
+const layerMenuSections: {label: string; layers: LayerName[]}[] = [
+  {label: 'Buildings & land', layers: ['Buildings', 'Land use']},
+  {label: 'Movement', layers: ['Roads', 'Walking & cycling', 'Transit']},
+  {label: 'Landscape', layers: ['Trees & woodland', 'Green spaces', 'Water', 'Waterways', 'Terrain']},
+  {label: 'Places', layers: ['Points of interest', 'Recreation & parking']},
+];
 function App() {
   const [theme,setTheme]=useState<Theme>(()=>readPreference('map3d.theme',['light','dark'],window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
   const [sceneLighting,setSceneLighting]=useState<SceneLighting>(()=>readPreference('map3d.sceneLighting',['day','night'],'day'));
@@ -27,6 +33,13 @@ function App() {
   const [drawerMinimized, setDrawerMinimized] = useState(false);
   const [layersMinimized, setLayersMinimized] = useState(() => window.matchMedia('(max-width: 700px)').matches);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [focusView, setFocusView] = useState(false);
+  useEffect(() => {
+    if (!focusView) return;
+    const exit = (event: KeyboardEvent) => { if (event.key === 'Escape') setFocusView(false); };
+    window.addEventListener('keydown', exit);
+    return () => window.removeEventListener('keydown', exit);
+  }, [focusView]);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const toolsButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -97,7 +110,7 @@ function App() {
       startLayers(priority.map(group => group.id));
     }
   }, [points, view, sceneStarted, startLayers, layers, setSelected]);
-  useEffect(() => { setMode('pan'); setSelection(undefined); setToolsOpen(false); setDrawerMinimized(false); setLayersMinimized(window.matchMedia('(max-width: 700px)').matches); setStatusData(undefined); setErrorData(undefined); }, [view]);
+  useEffect(() => { setMode('pan'); setSelection(undefined); setFocusView(false); setToolsOpen(false); setDrawerMinimized(false); setLayersMinimized(window.matchMedia('(max-width: 700px)').matches); setStatusData(undefined); setErrorData(undefined); }, [view]);
   const search = async (e: React.FormEvent) => {
     e.preventDefault(); if (!query.trim()) return;
     searchRequest.current?.abort(); const controller = new AbortController(); searchRequest.current = controller;
@@ -182,17 +195,17 @@ function App() {
     {loading && <button onClick={sceneLayers.cancel}>Stop loading layers</button>}
     {!loading && (failedCount > 0 || stoppedCount > 0) && <button onClick={sceneLayers.retryFailed}>Retry unavailable layers</button>}
   </>;
-  return <div className={`workspace${view === '3d' ? ' viewer-mode' : view === 'dashboard' ? ' dashboard-mode' : drawerMinimized ? ' sidebar-collapsed' : ''}`}>
+  return <div className={`workspace${view === '3d' ? ' viewer-mode' : view === 'dashboard' ? ' dashboard-mode' : drawerMinimized ? ' sidebar-collapsed' : ''}${focusView ? ' focus-view' : ''}`}>
     <header className="app-header">
       <a className="brand" href="/map" onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) { event.preventDefault(); returnToMap(); } }} aria-label="Map3d home"><span><Box size={23}/></span>map3d</a>
       {view === '3d' && <button className="back-to-map" onClick={returnToMap}><ArrowLeft size={15}/>Back to map</button>}
       <div ref={toolbarRef} className="top-toolbar" role="toolbar" aria-label="Display and export tools">
         <button className="dashboard-link" aria-label="Site dashboard" aria-current={view === 'dashboard' ? 'page' : undefined} disabled={points.length < 3 || isDrawing} onClick={() => navigate('dashboard')} title="Analyze the selected boundary"><ChartNoAxesCombined size={16}/><span>Site dashboard</span></button>
-        <button ref={toolsButtonRef} className="compact-tools-toggle" aria-label="Display and export settings" aria-expanded={toolsOpen} aria-controls="display-settings" onClick={() => setToolsOpen(value => !value)}><SlidersHorizontal size={18}/><span>Tools</span></button>
+        <button ref={toolsButtonRef} className="compact-tools-toggle" aria-label="Display and export settings" aria-expanded={toolsOpen} aria-controls="display-settings" onClick={() => { setToolsOpen(value => !value); if (window.matchMedia('(max-width: 700px)').matches) { setLayersMinimized(true); setSelected(null); } }}><SlidersHorizontal size={18}/><span>Tools</span></button>
         <div id="display-settings" className={`display-settings${toolsOpen ? ' open' : ''}`}>
-        <div className="compact-settings-heading"><h2>Display & exports</h2><button aria-label="Close display settings" onClick={() => { setToolsOpen(false); toolsButtonRef.current?.focus(); }}><X size={18}/></button></div>
+        <div className="compact-settings-heading"><h2>Settings</h2><button aria-label="Close display settings" onClick={() => { setToolsOpen(false); toolsButtonRef.current?.focus(); }}><X size={18}/></button></div>
         <div className="toolbar-control theme-control" role="group" aria-label="Interface theme">
-          <span className="toolbar-label">Appearance</span>
+          <span className="toolbar-label">App theme</span>
           <div className="segmented-control">
             <button aria-label="Light theme" aria-pressed={theme==='light'} title="Light interface" onClick={()=>setTheme('light')}><Sun size={15}/><span>Light</span></button>
             <button aria-label="Dark theme" aria-pressed={theme==='dark'} title="Dark interface" onClick={()=>setTheme('dark')}><Moon size={15}/><span>Dark</span></button>
@@ -200,21 +213,21 @@ function App() {
         </div>
         {view==='3d' && <>
           <div className="toolbar-control lighting-control" role="group" aria-label="Scene lighting">
-            <span className="toolbar-label">Scene lighting</span>
+            <span className="toolbar-label">Scene light</span>
             <div className="segmented-control">
               <button aria-label="Day lighting" aria-pressed={sceneLighting==='day'} title="Daytime scene lighting" onClick={()=>setSceneLighting('day')}><Sunrise size={15}/><span>Day</span></button>
               <button aria-label="Night lighting" aria-pressed={sceneLighting==='night'} title="Nighttime scene lighting" onClick={()=>setSceneLighting('night')}><MoonStar size={15}/><span>Night</span></button>
             </div>
+            <button aria-label="Reset camera" title="Reset camera" onClick={()=>{setToolsOpen(false);setReset(value=>value+1);}}><RotateCcw size={16}/></button>
           </div>
           <div className="toolbar-control export-control" role="group" aria-label="Scene exports">
-            <span className="toolbar-label">Scene tools</span>
+            <span className="toolbar-label">Export</span>
             <div className="viewer-toolbar">
-              <button aria-label="Reset camera" title="Reset camera" onClick={()=>setReset(value=>value+1)}><RotateCcw size={16}/></button>
-              <span className="toolbar-divider"/>
-              <button aria-label="Download Rhino 3DM" title="Download all loaded geometry as Rhino 7+ 3DM, including hidden layers, nested sublayers and colors (metres, Z-up)" disabled={rhinoExport.busy || (!features.length && !terrain)} onClick={downloadRhino}>{rhinoExport.busy?<LoaderCircle className="spin" size={15}/>:<Download size={15}/>}3DM</button>
-              <button aria-label="Download GLB" title="Download visible layers as GLB, including materials" disabled={rhinoExport.busy || !canExportScene} onClick={()=>exportScene('glb')}><Download size={15}/>GLB</button>
-              <button aria-label="Download OBJ" title="Download visible geometry as OBJ (metres, Y-up; no materials)" disabled={rhinoExport.busy || !canExportScene} onClick={()=>exportScene('obj')}><Download size={15}/>OBJ</button>
-              <button aria-label="Download raw data (JSON)" title="Download all loaded source data, boundary, and load statuses as JSON" disabled={!Object.keys(sceneLayers.sources).length} onClick={downloadRawData}><FileJson size={15}/><span className="raw-data-label">Raw data</span></button>
+
+              <button aria-label="Download Rhino 3DM" title="Download all loaded geometry as Rhino 7+ 3DM, including hidden layers, nested sublayers and colors (metres, Z-up)" disabled={rhinoExport.busy || (!features.length && !terrain)} onClick={()=>{setToolsOpen(false);downloadRhino();}}>{rhinoExport.busy?<LoaderCircle className="spin" size={15}/>:<Download size={15}/>}3DM</button>
+              <button aria-label="Download GLB" title="Download visible layers as GLB, including materials" disabled={rhinoExport.busy || !canExportScene} onClick={()=>{setToolsOpen(false);exportScene('glb');}}><Download size={15}/>GLB</button>
+              <button aria-label="Download OBJ" title="Download visible geometry as OBJ (metres, Y-up; no materials)" disabled={rhinoExport.busy || !canExportScene} onClick={()=>{setToolsOpen(false);exportScene('obj');}}><Download size={15}/>OBJ</button>
+              <button aria-label="Download raw data (JSON)" title="Download all loaded source data, boundary, and load statuses as JSON" disabled={!Object.keys(sceneLayers.sources).length} onClick={()=>{setToolsOpen(false);downloadRawData();}}><FileJson size={15}/><span className="raw-data-label">Raw data</span></button>
             </div>
           </div>
         </>}
@@ -258,18 +271,21 @@ function App() {
       </div>}
       <div className="viewport">
         <div className="map-viewport" hidden={view !== 'map'}><MapComponent mode={mode} points={points} onChange={updateBoundary} onDrawingChange={setIsDrawing} target={target}/></div>
-        {view === '3d' && <Space key={boundaryKey(points)} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} onMeasureStart={() => { if (window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }} sceneLighting={sceneLighting}/>}
+        {view === '3d' && <Space key={boundaryKey(points)} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} onFocus={() => { setSelected(null); setToolsOpen(false); setFocusView(true); }} onMeasureStart={() => { if (window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }} sceneLighting={sceneLighting}/>}
         {view === 'dashboard' && <Suspense fallback={<div className="site-calculating">Opening site dashboard…</div>}><SiteDashboard key={boundaryKey(points)} points={points} location={location} data={sceneLayers} analysis={analysis} onMap={returnToMap} onViewer={generate}/></Suspense>}
       </div>
       {view === '3d' && <>
+        {focusView && <button className="exit-focus-view" autoFocus onClick={() => setFocusView(false)}><Minimize2 size={16}/>Exit focus view</button>}
         <div className={`layer-panel${layersMinimized ? ' minimized' : ''}`}>
           <div className="layer-panel-heading">
-            <Layers size={16}/><h2>Scene layers</h2>
-            <button aria-label={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} title={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} aria-expanded={!layersMinimized} aria-controls="scene-layers-content" onClick={() => { if (layersMinimized && window.matchMedia('(max-width: 700px)').matches) setSelected(null); setLayersMinimized(value => !value); }}>{layersMinimized ? <ChevronDown size={17}/> : <ChevronUp size={17}/>}</button>
+            <Layers size={16}/><h2 aria-label="Scene layers"><span className="layer-title-prefix">Scene </span>layers</h2>
+            <span className="layer-summary" aria-live="polite" title={sceneMessage}>{loading || preparing > 0 ? <><LoaderCircle size={12} className="spin"/>Loading</> : failedCount || stoppedCount ? 'Partial' : features.length ? `${Object.values(layers).filter(Boolean).length} on` : 'Empty'}</span>
+            <button aria-label={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} title={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} aria-expanded={!layersMinimized} aria-controls="scene-layers-content" onClick={() => { setToolsOpen(false); if (layersMinimized && window.matchMedia('(max-width: 700px)').matches) setSelected(null); setLayersMinimized(value => !value); }}>{layersMinimized ? <ChevronDown size={17}/> : <ChevronUp size={17}/>}</button>
           </div>
           <div id="scene-layers-content" className="layer-panel-content" hidden={layersMinimized}>
             <p className="layer-hint" aria-live="polite">{sceneMessage}</p>
-            <div className="layer-list" role="region" aria-label="Scene layer list" tabIndex={0}>{layerNames.map(name => {
+            <div className="layer-loading-controls">{loadControls}</div>
+            <div className="layer-list" role="region" aria-label="Scene layer list" tabIndex={0}>{layerMenuSections.map(section => <div className="layer-section" key={section.label}><h3 className="layer-section-heading">{section.label}</h3>{section.layers.map(name => {
               const state = name === 'Terrain' ? null : sceneLayers.states[groupForLayer(name).id];
               const types=name==='Terrain'?[]:sublayerGroups[name];
               const mixed=name!=='Terrain' && layers[name] && visibleCounts[name]>0 && visibleCounts[name]<layerCounts[name];
@@ -283,7 +299,7 @@ function App() {
                 {types.length>0 && <div className="sublayer-list" id={groupId} role="group" aria-label={`${name} sublayers`} hidden={!expandedLayers[name]}>{types.map(type=><label className="sublayer-row" key={type.id}><span>{type.label}<small>{type.count.toLocaleString()} {type.count===1?'feature':'features'}</small></span><input type="checkbox" aria-label={`${name}: ${type.label}`} checked={layers[name] && sublayers[type.id]!==false} disabled={!layers[name]} onChange={e=>toggleSublayer(type.id,e.target.checked)}/></label>)}</div>}
                 {state && ['error', 'cancelled'].includes(state.status) && <div className="layer-failure"><details><summary>Why this layer is unavailable</summary><p>{state.message}</p></details><button disabled={loading} title={loading ? 'Other layers are still loading' : `Retry ${name}`} onClick={() => sceneLayers.retry(groupForLayer(name as typeof vectorLayers[number]).id)}>Retry {name}</button></div>}
               </div>;
-            })}</div>
+            })}</div>)}</div>
             {layers.Terrain && terrainState === 'error' && <div className="terrain-error" role="status">{terrainError}<button onClick={retryTerrain}>Retry elevation</button></div>}
           </div>
         </div>

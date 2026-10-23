@@ -3,10 +3,24 @@
 .compact-tools-toggle, .compact-settings-heading { display: none; }
 .sidebar-collapsed .drawer-top > span { display: none; }
 .drawer-content, .layer-list, .inspector { overscroll-behavior: contain; }
+.layer-summary, .layer-loading-controls { display: none; }
+.layer-section-heading { margin: 0; padding: 12px 0 6px; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .5px; }
+.lighting-control > button { border: 0; background: var(--subtle); padding: 7px; }
+@media (min-width: 1101px) {
+  .lighting-control { display: grid; grid-template-columns: auto 32px; }
+  .lighting-control > .toolbar-label { grid-column: 1 / -1; }
+}
 .app-header > .back-to-map { margin-right: auto; box-shadow: none; white-space: nowrap; }
 .projection-short { display: none; }
+.view-direction-control { display: flex; align-items: center; flex-shrink: 0; position: relative; }
+.view-direction-control::after {
+  content: ''; position: absolute; right: 10px; top: 50%; width: 5px; height: 5px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: translateY(-70%) rotate(45deg); pointer-events: none;
+}
 .view-direction-control select {
-  width: 92px; min-height: 36px; padding: 6px; font: inherit; font-size: 11px;
+  display: block; appearance: none; -webkit-appearance: none;
+  width: 92px; height: 36px; min-height: 36px; padding: 6px 24px 6px 8px; font: inherit; font-size: 11px;
   color: var(--text); background: var(--subtle); border: 1px solid var(--border); border-radius: 6px;
 }
 
@@ -32,11 +46,14 @@
   .app-header .toolbar-label { display: block; font-size: 10px; margin: 0; letter-spacing: 0; }
   .app-header .segmented-control button { flex: 1; min-height: 32px; padding: 5px 7px; font-size: 11px; }
   .app-header .segmented-control button span, .app-header .raw-data-label { display: inline; }
+  .app-header .lighting-control { grid-template-columns: 58px minmax(0, 1fr) 32px; gap: 4px; }
+  .app-header .lighting-control > button { height: 32px; padding: 5px; }
+  .app-header .lighting-control .segmented-control button { padding: 5px; gap: 4px; }
   .app-header .export-control { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 6px; border-top: 1px solid var(--border-soft); }
-  .app-header .viewer-toolbar { display: grid; grid-template-columns: 30px repeat(3, minmax(0, 1fr)) 68px; gap: 2px; padding: 2px; }
+  .app-header .viewer-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 68px; gap: 2px; padding: 2px; }
   .app-header .viewer-toolbar button { min-height: 32px; padding: 5px 3px; font-size: 10px; gap: 3px; }
   .app-header .viewer-toolbar button:last-child { grid-column: auto; }
-  .app-header .viewer-toolbar button:not(:first-child) svg { display: none; }
+  .app-header .viewer-toolbar button svg { display: none; }
   .app-header .toolbar-divider { display: none; }
   .search input { font-size: 16px; }
   .drawer-toggle, .search button, .boundary-summary button, .inspector .close { min-width: 44px; min-height: 44px; }
@@ -177,14 +194,14 @@
   .viewer-mode .compact-tools-toggle { min-width: 40px; min-height: 40px; }
   .model-tools {
     top: 10px; left: 50%; right: auto; transform: translateX(-50%); width: max-content;
-    max-width: calc(100% - 20px); padding: 3px; gap: 3px; border-radius: 9px;
+    max-width: calc(100% - 20px); padding: 3px; gap: 3px; border-radius: 9px; align-items: center;
   }
   .model-tools .segmented-control { flex: 0 0 auto; padding: 2px; gap: 1px; border: 0; }
   .model-tools button { min-height: 32px; padding: 5px 8px; font-size: 11px; gap: 4px; }
   .model-tools .measure-toggle svg { width: 14px; height: 14px; }
   .model-tools .projection-full { display: none; }
   .model-tools .projection-short { display: inline; }
-  .view-direction-control select { width: 76px; min-height: 32px; padding: 4px; }
+  .view-direction-control select { width: 76px; height: 32px; min-height: 32px; padding: 4px 24px 4px 8px; }
   .orientation-gizmo { display: none; }
   .scale-legend { padding: 5px 8px; min-width: 0; background: var(--panel-glass); }
   .scale-legend small { display: none; }
@@ -192,3 +209,45 @@
   .measurement-panel { top: 60px; }
   .viewer-mode .viewer-actions, .viewer-mode:has(.scene-notice) .viewer-actions { top: 60px; }
 }
+
+/* Phone viewer: camera controls above, layer access and scale below, model in between. */
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .workspace.viewer-mode { grid-template-rows: calc(52px + env(safe-area-inset-top)) minmax(0, 1fr); }
+  .viewer-mode .app-header { padding-top: calc(6px + env(safe-area-inset-top)); padding-bottom: 6px; }
+  .viewer-mode .app-header .brand > span:first-child { width: 28px; height: 28px; }
+  .viewer-mode .app-header .dashboard-link { min-height: 36px; min-width: 36px; padding: 8px; }
+  .model-tools .focus-view-button { width: 30px; padding: 5px; border: 0; background: transparent; }
+  .viewer-mode .viewport-bottom { min-height: 28px; padding: 0 10px env(safe-area-inset-bottom); background: var(--panel-glass); font-size: 8px; }
+  .viewer-mode .data-guide-trigger { min-height: 28px; padding: 4px; font-size: 9px; }
+  .viewer-mode .layer-panel { top: auto; bottom: calc(38px + env(safe-area-inset-bottom)); left: 10px; right: 10px; width: auto; max-height: min(50dvh, calc(100% - 70px)); }
+  .viewer-mode .layer-panel.minimized {
+    top: auto; left: 10px; right: auto; bottom: calc(38px + env(safe-area-inset-bottom));
+    width: max-content; max-width: calc(100% - 160px); padding: 0 10px; border-radius: 10px;
+  }
+  .layer-title-prefix { display: none; }
+  .layer-panel-heading h2 { text-transform: capitalize; font-size: 12px; }
+  .layer-summary { min-width: 0; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+  .layer-panel.minimized .layer-panel-heading { min-height: 38px; gap: 6px; padding-right: 22px; }
+  .layer-panel.minimized .layer-panel-heading button { position: absolute; inset: 0; width: 100%; height: 100%; padding: 8px; justify-content: flex-end; }
+  .layer-panel.minimized .layer-panel-heading button svg { transform: rotate(180deg); }
+  .layer-loading-controls { display: flex; flex-shrink: 0; gap: 6px; }
+  .layer-loading-controls:empty { display: none; }
+  .layer-loading-controls button { width: auto; margin: 0 0 8px; padding: 6px 8px; }
+  .layer-section-heading { position: sticky; top: 0; z-index: 1; padding: 10px 0 7px; background: var(--panel); }
+  .viewer-mode .scale-legend { left: auto; right: 10px; bottom: calc(38px + env(safe-area-inset-bottom)); padding: 5px 7px; }
+  .viewer-mode .scene-notice { display: none; }
+  .viewer-mode main:has(.scene-notice) .scale-legend { visibility: visible; }
+  .viewer-mode main:has(.layer-panel:not(.minimized)) .scale-legend,
+  .viewer-mode main:has(.inspector) .scale-legend { visibility: hidden; }
+  .viewer-mode .inspector { bottom: calc(38px + env(safe-area-inset-bottom)); }
+}
+
+/* Focus keeps the same canvas and camera, with a single route back to the controls. */
+.workspace.viewer-mode.focus-view { grid-template-rows: minmax(0, 1fr); }
+.workspace.focus-view > main { grid-row: 1; }
+.workspace.focus-view > .app-header,
+.focus-view .viewport-top, .focus-view .viewport-bottom, .focus-view .model-tools,
+.focus-view .layer-panel, .focus-view .inspector, .focus-view .viewer-actions,
+.focus-view .scene-notice, .focus-view .scale-legend, .focus-view .orientation-gizmo,
+.focus-view .measurement-panel { display: none; }
+.exit-focus-view { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 1500; min-height: 36px; padding: 8px 10px; font-size: 11px; background: var(--panel-glass); }
