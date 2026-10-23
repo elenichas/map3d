@@ -242,6 +242,36 @@
   .viewer-mode .inspector { bottom: calc(38px + env(safe-area-inset-bottom)); }
 }
 
+/* Small-screen inspection stays beside the model instead of covering its full width. */
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .workspace.viewer-mode { grid-template-rows: calc(48px + env(safe-area-inset-top)) minmax(0, 1fr); }
+  .viewer-mode .app-header { padding-top: calc(4px + env(safe-area-inset-top)); padding-bottom: 4px; gap: 6px; }
+  .viewer-mode .app-header > .back-to-map { min-height: 36px; padding: 6px 8px; font-size: 11px; }
+  .viewer-mode .compact-tools-toggle { min-width: 36px; min-height: 36px; padding: 8px; }
+  .model-tools { top: 6px; padding: 2px; gap: 2px; }
+  .model-tools .segmented-control { padding: 0; }
+  .model-tools button { padding: 4px 6px; }
+  .view-direction-control select { width: 66px; padding-left: 6px; }
+  .viewer-mode .inspector {
+    top: 50px; right: max(8px, env(safe-area-inset-right)); bottom: auto; left: auto;
+    width: min(48vw, 200px); max-height: min(44dvh, calc(100% - 100px));
+    padding: 10px; border-radius: 10px; border: 1px solid var(--border);
+    scrollbar-width: thin; overflow-x: hidden; overflow-y: auto;
+  }
+  .viewer-mode .inspector .close {
+    position: sticky; float: right; top: 0; right: auto; margin: -4px -4px 2px 3px;
+    min-width: 32px; min-height: 32px; padding: 6px; z-index: 1; background: var(--panel);
+  }
+  .viewer-mode .inspector .eyebrow { font-size: 8px; letter-spacing: .6px; line-height: 1.5; }
+  .viewer-mode .inspector h2 { font-size: 13px; line-height: 1.35; margin-top: 7px; padding: 0; overflow-wrap: anywhere; }
+  .viewer-mode .inspector .hint { font-size: 10px; line-height: 1.5; margin-top: 7px; overflow-wrap: anywhere; }
+  .viewer-mode .inspector dl { clear: both; font-size: 11px; margin: 8px 0; }
+  .viewer-mode .inspector dl > div { gap: 6px; padding: 6px 0; }
+  .viewer-mode .inspector dt, .viewer-mode .inspector dd { min-width: 0; flex: 1; }
+  .viewer-mode main:has(.inspector) .scale-legend { visibility: visible; }
+  .viewer-mode main:has(.layer-panel:not(.minimized)) .scale-legend { visibility: hidden; }
+}
+
 /* Focus keeps the same canvas and camera, with a single route back to the controls. */
 .workspace.viewer-mode.focus-view { grid-template-rows: minmax(0, 1fr); }
 .workspace.focus-view > main { grid-row: 1; }

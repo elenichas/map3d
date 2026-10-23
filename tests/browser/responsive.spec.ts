@@ -112,3 +112,33 @@ test('phone touch drawing expands the map and restores the completed boundary co
   await page.screenshot({path:'test-results/responsive-map-390.png'});
   await context.close();
 });
+
+for (const size of [{width:320,height:568},{width:390,height:844},{width:667,height:375}]) {
+  test(`phone inspector leaves the model visible at ${size.width}×${size.height}`, async ({page}) => {
+    await page.setViewportSize(size); await prepare(page);
+    const building={type:'way',id:900,tags:{building:'apartments',height:'30',name:'Riverside apartment building',...Object.fromEntries(Array.from({length:20},(_,i)=>[`detail_${i}`,`Mapped property ${i}`]))},geometry:[{lat:40.7997,lon:-73.9503},{lat:40.7997,lon:-73.9497},{lat:40.8003,lon:-73.9497},{lat:40.8003,lon:-73.9503},{lat:40.7997,lon:-73.9503}]};
+    await page.route('**/api/interpreter',route=>route.fulfill({json:{elements:route.request().postData()?.includes('"building"')?[building]:[]}}));
+    await page.goto('/viewer');
+    await expect(page.locator('.layer-hint')).toContainText('Scene ready');
+    await page.getByLabel('View direction',{exact:true}).selectOption('top');
+    const canvas=(await page.locator('canvas').boundingBox())!;
+    const inspector=page.getByRole('dialog',{name:'Feature details'});
+    await expect(async()=>{
+      await page.mouse.click(canvas.x+canvas.width/2,canvas.y+canvas.height/2);
+      await expect(inspector).toBeVisible({timeout:1000});
+    }).toPass();
+    await withinScreen(page,inspector);
+    const box=(await inspector.boundingBox())!, toolbar=(await page.locator('.model-tools').boundingBox())!;
+    expect(box.width).toBeLessThanOrEqual(size.width*.5);
+    expect(size.width-box.x-box.width).toBeLessThanOrEqual(12);
+    expect(box.y).toBeGreaterThan(toolbar.y+toolbar.height);
+    expect(box.y-canvas.y).toBeLessThanOrEqual(55);
+    expect(box.width*box.height/(canvas.width*canvas.height)).toBeLessThan(.25);
+    await expect(page.locator('.scale-legend')).toBeVisible();
+    await page.screenshot({path:`test-results/phone-inspector-${size.width}.png`});
+    await inspector.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    await withinScreen(page,page.getByRole('button',{name:'Close feature details'}));
+    await page.getByRole('button',{name:'Close feature details'}).click();
+    await expect(inspector).toBeHidden();
+  });
+}
