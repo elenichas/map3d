@@ -52,6 +52,7 @@ for(const size of [{width:320,height:568},{width:390,height:844},{width:768,heig
     await page.getByRole('button',{name:'Minimize scene layers'}).click();
     await page.getByRole('button',{name:'Display and export settings'}).click();
     await withinScreen(page,page.locator('#display-settings'));
+    if (size.width === 390) await page.screenshot({path:'test-results/compact-tools-390.png'});
     await page.getByRole('button',{name:'Dark theme',exact:true}).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await page.getByRole('button',{name:'Light theme',exact:true}).click();

@@ -19,22 +19,24 @@
   .app-header .dashboard-link { min-height: 44px; min-width: 44px; }
   .app-header .display-settings { display: none; }
   .app-header .display-settings.open {
-    display: flex; flex-direction: column; align-items: stretch; gap: 18px;
-    position: absolute; right: 16px; top: calc(100% + 8px); width: min(360px, calc(100vw - 24px));
-    padding: 16px; max-height: calc(100dvh - 100px); overflow-y: auto; overscroll-behavior: contain;
-    border: 1px solid var(--border); border-radius: 16px; background: var(--panel);
+    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+    position: absolute; right: 16px; top: calc(100% + 8px); width: min(280px, calc(100vw - 24px));
+    padding: 10px; max-height: calc(100dvh - 100px); overflow-y: auto; overscroll-behavior: contain;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
     box-shadow: 0 12px 40px var(--shadow-strong);
   }
   .compact-settings-heading { display: flex; justify-content: space-between; align-items: center; }
-  .compact-settings-heading button { min-width: 44px; min-height: 44px; border: 0; }
-  .app-header .toolbar-control { align-self: stretch; gap: 8px; }
-  .app-header .toolbar-label { display: block; font-size: 11px; }
-  .app-header .segmented-control button { flex: 1; min-height: 44px; font-size: 13px; }
+  .compact-settings-heading button { min-width: 32px; min-height: 32px; padding: 6px; border: 0; }
+  .compact-settings-heading h2 { font-size: 12px; }
+  .app-header .toolbar-control { align-self: stretch; display: grid; grid-template-columns: 66px minmax(0, 1fr); align-items: center; gap: 6px; }
+  .app-header .toolbar-label { display: block; font-size: 10px; margin: 0; letter-spacing: 0; }
+  .app-header .segmented-control button { flex: 1; min-height: 32px; padding: 5px 7px; font-size: 11px; }
   .app-header .segmented-control button span, .app-header .raw-data-label { display: inline; }
-  .app-header .viewer-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-  .app-header .viewer-toolbar button { min-height: 44px; font-size: 12px; }
-  .app-header .viewer-toolbar button:last-child { grid-column: span 2; }
-  .app-header .viewer-toolbar .lucide-download { display: block; }
+  .app-header .export-control { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 6px; border-top: 1px solid var(--border-soft); }
+  .app-header .viewer-toolbar { display: grid; grid-template-columns: 30px repeat(3, minmax(0, 1fr)) 68px; gap: 2px; padding: 2px; }
+  .app-header .viewer-toolbar button { min-height: 32px; padding: 5px 3px; font-size: 10px; gap: 3px; }
+  .app-header .viewer-toolbar button:last-child { grid-column: auto; }
+  .app-header .viewer-toolbar button:not(:first-child) svg { display: none; }
   .app-header .toolbar-divider { display: none; }
   .search input { font-size: 16px; }
   .drawer-toggle, .search button, .boundary-summary button, .inspector .close { min-width: 44px; min-height: 44px; }
