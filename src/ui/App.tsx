@@ -185,6 +185,7 @@ function App() {
   return <div className={`workspace${view === '3d' ? ' viewer-mode' : view === 'dashboard' ? ' dashboard-mode' : drawerMinimized ? ' sidebar-collapsed' : ''}`}>
     <header className="app-header">
       <a className="brand" href="/map" onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) { event.preventDefault(); returnToMap(); } }} aria-label="Map3d home"><span><Box size={23}/></span>map3d</a>
+      {view === '3d' && <button className="back-to-map" onClick={returnToMap}><ArrowLeft size={15}/>Back to map</button>}
       <div ref={toolbarRef} className="top-toolbar" role="toolbar" aria-label="Display and export tools">
         <button className="dashboard-link" aria-label="Site dashboard" aria-current={view === 'dashboard' ? 'page' : undefined} disabled={points.length < 3 || isDrawing} onClick={() => navigate('dashboard')} title="Analyze the selected boundary"><ChartNoAxesCombined size={16}/><span>Site dashboard</span></button>
         <button ref={toolsButtonRef} className="compact-tools-toggle" aria-label="Display and export settings" aria-expanded={toolsOpen} aria-controls="display-settings" onClick={() => setToolsOpen(value => !value)}><SlidersHorizontal size={18}/><span>Tools</span></button>
@@ -253,7 +254,7 @@ function App() {
     <main>
       {view !== 'dashboard' && <div className="viewport-top">
         <div className="location-pill"><MapPin size={15}/>{view === 'map' && searchLocation ? searchLocation : location}</div>
-        {view === '3d' && <button className="back-to-map" onClick={returnToMap}><ArrowLeft size={15}/>Back to map</button>}
+
       </div>}
       <div className="viewport">
         <div className="map-viewport" hidden={view !== 'map'}><MapComponent mode={mode} points={points} onChange={updateBoundary} onDrawingChange={setIsDrawing} target={target}/></div>

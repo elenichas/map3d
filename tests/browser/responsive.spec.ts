@@ -29,6 +29,18 @@ for(const size of [{width:320,height:568},{width:390,height:844},{width:768,heig
     await expect(page.locator('canvas')).toBeVisible();
     await withinScreen(page,page.getByRole('button',{name:'Back to map',exact:true}));
     await withinScreen(page,page.getByRole('toolbar',{name:'Model navigation and measurement'}));
+    await expect(page.locator('.app-header').getByRole('button',{name:'Back to map',exact:true})).toBeVisible();
+    if (size.width <= 700 || size.height <= 500) {
+      const toolbar=(await page.locator('.model-tools').boundingBox())!;
+      const main=(await page.locator('main').boundingBox())!;
+      expect(toolbar.height).toBeLessThanOrEqual(44);
+      expect(toolbar.y-main.y).toBeLessThanOrEqual(12);
+      await expect(page.getByRole('group',{name:'View cube',exact:true})).toBeHidden();
+      await page.getByLabel('View direction',{exact:true}).selectOption('top');
+      await page.getByRole('button',{name:'Measure distance',exact:true}).click();
+      await expect(page.getByRole('region',{name:'Measurements'})).toBeVisible();
+      await page.getByRole('button',{name:'Exit measure tool',exact:true}).click();
+    }
     const expand=page.getByRole('button',{name:'Expand scene layers'});
     if(await expand.isVisible()) await expand.click();
     await expect(page.locator('.layer-hint')).toContainText('Scene ready');

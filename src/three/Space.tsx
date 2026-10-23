@@ -109,10 +109,11 @@ export function Space(props: Props) {
     </Canvas>
     <div className="model-tools" role="toolbar" aria-label="Model navigation and measurement">
       <div className="segmented-control" role="group" aria-label="Camera projection">
-        <button aria-pressed={projection==='perspective'} onClick={()=>setProjection('perspective')}>Perspective</button>
-        <button aria-pressed={projection==='isometric'} onClick={()=>setProjection('isometric')}>Isometric</button>
+        <button aria-label="Perspective" title="Perspective projection" aria-pressed={projection==='perspective'} onClick={()=>setProjection('perspective')}><span className="projection-full">Perspective</span><span className="projection-short">Persp</span></button>
+        <button aria-label="Isometric" title="Isometric projection" aria-pressed={projection==='isometric'} onClick={()=>setProjection('isometric')}><span className="projection-full">Isometric</span><span className="projection-short">Iso</span></button>
       </div>
       <button className="measure-toggle" aria-label="Measure distance" aria-pressed={measuring} onClick={()=>{if (!measuring) props.onMeasureStart?.();setMeasuring(value=>!value);cancelDraft();onSelect(null);}}><Ruler size={16}/>Measure</button>
+      <div className="view-direction-control" role="group" aria-label="View orientation"><select aria-label="View direction" value="" onChange={event=>{if(event.target.value) requestView(event.target.value as ViewDirection);}}><option value="" disabled>View</option><option value="iso">Isometric angle</option><option value="top">Top · north up</option><option value="front">Front · from south</option><option value="back">Back · from north</option><option value="left">Left · from west</option><option value="right">Right · from east</option><option value="bottom">Bottom</option></select></div>
     </div>
     {(measuring || measurements.length>0) && <div className="measurement-panel" role="region" aria-label="Measurements">
       <div className="measurement-heading"><strong>Measure distance</strong><button aria-label="Clear measurements" title="Clear measurements" disabled={!measurements.length && !measureStart} onClick={clearMeasurements}><Trash2 size={14}/></button>{measuring && <button aria-label="Exit measure tool" title="Exit measure tool" onClick={()=>{setMeasuring(false);cancelDraft();}}><X size={15}/></button>}</div>
@@ -126,9 +127,9 @@ export function Space(props: Props) {
     <div className="scale-legend" ref={scaleRef} role="img" aria-label={projection==='perspective'?'Approximate scale at camera focus depth':'Orthographic view scale'} title={projection==='perspective'?'Approximate at camera focus depth; perspective scale varies with depth':'Scale in the view plane; horizontal ground distances are foreshortened in tilted views'}>
       <div className="scale-labels"><span>0</span><span className="scale-distance">…</span></div><div className="scale-bar"/><small>{projection==='perspective'?'Approx. at focus depth':'View-plane scale'}</small>
     </div>
-    <div className="orientation-gizmo" role="group" aria-label="View orientation">
+    <div className="orientation-gizmo" role="group" aria-label="View cube">
       <div className="gizmo-stage"><div className="gizmo-cube" ref={cubeRef}>{(['front','back','top','bottom','left','right'] as const).map(face=><button key={face} className={`gizmo-face face-${face}`} aria-label={`${face[0].toUpperCase()+face.slice(1)} view`} title={`${face[0].toUpperCase()+face.slice(1)} view`} onClick={()=>requestView(face)}>{face}</button>)}</div></div>
-      <select aria-label="View direction" value="" onChange={event=>{if(event.target.value) requestView(event.target.value as ViewDirection);}}><option value="" disabled>Choose view</option><option value="iso">Isometric angle</option><option value="top">Top · north up</option><option value="front">Front · from south</option><option value="back">Back · from north</option><option value="left">Left · from west</option><option value="right">Right · from east</option><option value="bottom">Bottom</option></select>
+
     </div>
     </div></ViewerBoundary>;
 }

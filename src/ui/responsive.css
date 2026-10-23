@@ -3,6 +3,12 @@
 .compact-tools-toggle, .compact-settings-heading { display: none; }
 .sidebar-collapsed .drawer-top > span { display: none; }
 .drawer-content, .layer-list, .inspector { overscroll-behavior: contain; }
+.app-header > .back-to-map { margin-right: auto; box-shadow: none; white-space: nowrap; }
+.projection-short { display: none; }
+.view-direction-control select {
+  width: 92px; min-height: 36px; padding: 6px; font: inherit; font-size: 11px;
+  color: var(--text); background: var(--subtle); border: 1px solid var(--border); border-radius: 6px;
+}
 
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 280px minmax(0, 1fr); }
@@ -158,4 +164,29 @@
 .map-viewport:has(.finish-drawing) .tile-warning { bottom: 122px; pointer-events: none; }
 @media (max-width: 700px) {
   .sidebar .primary { position: sticky; bottom: 0; z-index: 1; box-shadow: 0 -6px 18px var(--panel); }
+}
+
+/* One slim camera toolbar on phones, with orientation in a menu instead of a floating cube. */
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .viewer-mode .app-header { gap: 8px; }
+  .viewer-mode .app-header .brand { font-size: 0; gap: 0; }
+  .viewer-mode .app-header > .back-to-map { font-size: 12px; padding: 8px; gap: 5px; min-height: 40px; }
+  .viewer-mode .compact-tools-toggle > span { display: none; }
+  .viewer-mode .compact-tools-toggle { min-width: 40px; min-height: 40px; }
+  .model-tools {
+    top: 10px; left: 50%; right: auto; transform: translateX(-50%); width: max-content;
+    max-width: calc(100% - 20px); padding: 3px; gap: 3px; border-radius: 9px;
+  }
+  .model-tools .segmented-control { flex: 0 0 auto; padding: 2px; gap: 1px; border: 0; }
+  .model-tools button { min-height: 32px; padding: 5px 8px; font-size: 11px; gap: 4px; }
+  .model-tools .measure-toggle svg { width: 14px; height: 14px; }
+  .model-tools .projection-full { display: none; }
+  .model-tools .projection-short { display: inline; }
+  .view-direction-control select { width: 76px; min-height: 32px; padding: 4px; }
+  .orientation-gizmo { display: none; }
+  .scale-legend { padding: 5px 8px; min-width: 0; background: var(--panel-glass); }
+  .scale-legend small { display: none; }
+  .scale-bar { height: 5px; margin-bottom: 0; }
+  .measurement-panel { top: 60px; }
+  .viewer-mode .viewer-actions, .viewer-mode:has(.scene-notice) .viewer-actions { top: 60px; }
 }
