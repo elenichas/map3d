@@ -5,6 +5,8 @@ import type { useSceneLayers } from '../hooks/useSceneLayers';
 import { layerGroups, type GroupId } from '../data/layers';
 import { downloadFile } from '../data/download';
 import type { AreaMetric, SiteReport } from '../data/siteAnalysis';
+import { landUseCategory } from '../data/landUseStyle';
+import { CategoryBadge } from './CategoryBadge';
 import './dashboard.css';
 
 type Props = {
@@ -21,9 +23,10 @@ const statusLabels = { idle: 'Not loaded', queued: 'Queued', loading: 'Loading',
 function Stat({ label, value, unit, detail, icon: Icon }: { label: string; value: string; unit?: string; detail: string; icon: typeof Box }) {
   return <div className="site-stat"><div className="site-stat-label"><span>{label}</span><Icon size={18}/></div><div className="site-stat-value">{value}<span>{unit}</span></div><p>{detail}</p></div>;
 }
-function AreaBars({ rows, total, formatArea }: { rows: AreaMetric[]; total: number; formatArea: (area: number) => string }) {
+function AreaBars({ rows, total, formatArea, landUse = false }: { rows: AreaMetric[]; total: number; formatArea: (area: number) => string; landUse?: boolean }) {
   return <div className="site-area-bars">{rows.map(row => <div className="site-area-row" key={row.id}>
-    <div><span><i style={{ background: row.color }}/>{row.label}</span><strong>{percentage(row.area, total)}</strong></div>
+    <div><span>{landUse ? <CategoryBadge category={landUseCategory(row.id)}/> : <i aria-hidden="true" style={{ background: row.color }}/>}
+      {row.label}</span><strong>{percentage(row.area, total)}</strong></div>
     <div className="site-bar-track"><span style={{ width: `${Math.min(100, row.area / total * 100)}%`, background: row.color }}/></div>
     <small>{formatArea(row.area)}</small>
   </div>)}</div>;
@@ -112,7 +115,7 @@ export default function SiteDashboard({ points, location, data, analysis, onMap,
           </> : <p className="site-empty">{buildingsAvailable ? b!.count ? 'No usable height or level tags were found. Unknown heights are excluded.' : 'No building footprints were found in the loaded data.' : 'Waiting for building data.'}</p>}
         </section>
         <section className="site-card"><div className="site-card-heading"><div><h2>Land-use allocation</h2><p>Area tagged with a land-use designation</p></div></div>
-          {report.landUses.length ? <div className="site-scroll-list" role="region" aria-label="Land-use designations" tabIndex={0}><AreaBars rows={report.landUses} total={report.area} formatArea={formatArea}/></div> : <p className="site-empty">{landscapeAvailable ? 'No land-use polygons were found in the loaded data.' : 'Waiting for land-use data.'}</p>}
+          {report.landUses.length ? <div className="site-scroll-list" role="region" aria-label="Land-use designations" tabIndex={0}><AreaBars rows={report.landUses} total={report.area} formatArea={formatArea} landUse/></div> : <p className="site-empty">{landscapeAvailable ? 'No land-use polygons were found in the loaded data.' : 'Waiting for land-use data.'}</p>}
           <p className="site-note">Designations can overlap, so percentages may not add to 100%. These are mapped land-use tags, not zoning or inferred building uses.</p>
         </section>
         <section className="site-card"><div className="site-card-heading"><div><h2>Landscape & movement</h2><p>Mapped features inside the boundary</p></div><Route size={18}/></div>
@@ -127,7 +130,7 @@ export default function SiteDashboard({ points, location, data, analysis, onMap,
           </dl><p className="site-note">Lengths are clipped to the boundary. Tree points are not a canopy estimate. Green-designated space can include paths, lawns and other surfaces.</p>
         </section>
         <section className="site-card"><div className="site-card-heading"><div><h2>Places & amenities</h2><p>Mapped points of interest by type</p></div><MapPin size={18}/></div>
-          {report.amenities.length ? <div className="site-scroll-list" role="region" aria-label="Amenity types" tabIndex={0}><dl className="site-metric-list">{report.amenities.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{number(row.count)}</dd></div>)}</dl></div> : <p className="site-empty">{available('places') ? 'No points of interest were found in the loaded data.' : 'Waiting for places data.'}</p>}
+          {report.amenities.length ? <div className="site-scroll-list" role="region" aria-label="Amenity types" tabIndex={0}><dl className="site-metric-list">{report.amenities.map(row => <div key={row.id}><dt><CategoryBadge category={row.category} icon={row.icon} round/>{row.label}</dt><dd>{number(row.count)}</dd></div>)}</dl></div> : <p className="site-empty">{available('places') ? 'No points of interest were found in the loaded data.' : 'Waiting for places data.'}</p>}
           <p className="site-note">Counts include POI markers derived from tagged buildings and grounds. A missing place in OpenStreetMap does not mean it does not exist.</p>
         </section>
       </div>

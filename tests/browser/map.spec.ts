@@ -195,6 +195,7 @@ test('nested road and POI types filter independently, clear selection, and prese
     {type:'way',id:301,tags:{highway:'primary'},geometry:[{lat:40.799,lon:-73.9501},{lat:40.801,lon:-73.9501}]},
     {type:'node',id:302,tags:{amenity:'restaurant',name:'Test restaurant'},lat:40.8003,lon:-73.9498},
     {type:'node',id:303,tags:{shop:'bakery',name:'Test bakery'},lat:40.8005,lon:-73.9498},
+    {type:'node',id:304,tags:{amenity:'bank',name:'Test bank'},lat:40.8007,lon:-73.9498},
   ];
   await mockLayers(page);
   await page.route('**/api/interpreter',route=>{requests++;return route.fulfill({json:{elements:[...richElements,...extras]}});});
@@ -208,15 +209,31 @@ test('nested road and POI types filter independently, clear selection, and prese
   let download=page.waitForEvent('download');await page.getByRole('button',{name:'Download GLB',exact:true}).click();
   const names=(await readGlb(await download)).nodes.map((node:{name:string})=>node.name);
   expect(names).toContain('way/103');expect(names).toContain('way/301');expect(names).not.toContain('way/300');
-  await page.getByRole('checkbox',{name:'Points of interest',exact:true}).check();
+  const poi = page.getByRole('checkbox',{name:'Points of interest',exact:true});
+  const food = page.getByRole('checkbox',{name:'Points of interest: Food & cafés',exact:true});
+  const cafe = page.getByRole('checkbox',{name:'Points of interest: Cafés',exact:true});
+  await poi.check();
   await page.getByRole('button',{name:'Show Points of interest sublayers',exact:true}).click();
+  await page.getByRole('button',{name:'Show Food & cafés types',exact:true}).click();
   await expect(page.getByRole('checkbox',{name:'Points of interest: Shops · Bakery',exact:true})).toBeVisible();
+  await poi.uncheck();
+  await expect(food).toBeEnabled();
+  await expect(food).not.toBeChecked();
+  await expect(cafe).not.toBeChecked();
+  await cafe.check();
+  await expect(poi).toHaveAttribute('aria-checked','mixed');
+  await expect(food).toHaveAttribute('aria-checked','mixed');
+  await expect(page.getByRole('button',{name:'Inspect Test restaurant',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Inspect Test bank',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Inspect Corner cafe',exact:true}).click();
   await expect(page.getByRole('dialog',{name:'Feature details'})).toBeVisible();
-  await page.getByRole('checkbox',{name:'Points of interest: Cafés',exact:true}).uncheck();
+  await cafe.uncheck();
   await expect(page.getByRole('dialog',{name:'Feature details'})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Inspect Corner cafe',exact:true})).toHaveCount(0);
+  await food.click();
   await expect(page.getByRole('button',{name:'Inspect Test restaurant',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Inspect Test bank',exact:true})).toHaveCount(0);
+  await cafe.uncheck();
   download=page.waitForEvent('download');await page.getByRole('button',{name:'Download raw data (JSON)',exact:true}).click();
   const {readFile}=await import('node:fs/promises');
   const raw=JSON.parse(await readFile((await (await download).path())!,'utf8'));
@@ -225,8 +242,11 @@ test('nested road and POI types filter independently, clear selection, and prese
   await page.getByRole('checkbox',{name:'Roads',exact:true}).click();
   await expect(service).toBeChecked();
   await page.getByRole('checkbox',{name:'Roads',exact:true}).uncheck();
-  await expect(service).toBeDisabled();
-  await page.getByRole('checkbox',{name:'Roads',exact:true}).check();
+  await expect(service).toBeEnabled();
+  await expect(service).not.toBeChecked();
+  await service.check();
+  await expect(page.getByRole('checkbox',{name:'Roads',exact:true})).toHaveAttribute('aria-checked','mixed');
+  await page.getByRole('checkbox',{name:'Roads',exact:true}).click();
   await expect(service).toBeChecked();
   await expect(page.getByRole('checkbox',{name:'Roads',exact:true})).toHaveAttribute('aria-checked','true');
   expect(requests).toBe(count);

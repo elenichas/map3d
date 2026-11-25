@@ -1,5 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { landUseCategories } from '../../src/data/landUseStyle';
+import { poiCategories } from '../../src/data/poiStyle';
+
+const rgb = (hex: string) => `rgb(${hex.slice(1).match(/../g)!.map(value => parseInt(value, 16)).join(', ')})`;
 
 const ring = (x: number, y: number, width: number) => [[x,y],[x+width,y],[x+width,y+width],[x,y+width],[x,y]].map(([lon,lat]) => ({lat:lat/111320,lon:lon/111320}));
 const elements = [
@@ -34,7 +38,13 @@ test('dashboard measures the boundary, preserves routes and downloads a report',
   await expect(page.locator('.site-stat').filter({hasText:'Mapped green space'})).toContainText('95%');
   await expect(page.locator('.site-stat').filter({hasText:'Mean building height'})).toContainText('12m');
   await expect(page.getByText('1 unknown, excluded.',{exact:false})).toBeVisible();
-  await expect(page.getByRole('heading',{name:'Land-use allocation'})).toBeVisible();
+  const landUse = page.getByRole('region', { name: 'Land-use designations' });
+  const residential = landUse.locator('.site-area-row').filter({ hasText: 'Residential' });
+  await expect(residential.locator('.category-badge')).toHaveCSS('background-color', rgb(landUseCategories.residential.color));
+  await expect(residential.locator('.category-badge svg')).toHaveClass(/lucide-house/);
+  const cafe = page.getByRole('region', { name: 'Amenity types' }).getByRole('term').filter({ hasText: 'Cafés' });
+  await expect(cafe.locator('.poi-swatch')).toHaveCSS('background-color', rgb(poiCategories.food.color));
+  await expect(cafe.locator('.poi-swatch svg')).toHaveClass(/lucide-coffee/);
   await page.getByRole('button',{name:'m²',exact:true}).click();
   await expect(page.locator('.site-stat').filter({hasText:'Site area'})).toContainText('10,000m²');
   const download=page.waitForEvent('download');

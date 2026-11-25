@@ -81,7 +81,9 @@ test('point counts exclude outside features and deduplicate POIs; bad geometry i
     point(4, 'Transit', [0, 25], { highway: 'bus_stop' }),
     feature(5, 'Buildings', [[NaN, 0], [1, 1], [0, 1]], {}),
   ]);
-  assert.deepEqual(report.amenities, [{ label: 'Cafés', count: 1 }]);
+  assert.deepEqual(report.amenities.map(({ id, label, count }) => ({ id, label, count })), [
+    { id: 'Points of interest|amenity:cafe', label: 'Cafés', count: 1 },
+  ]);
   assert.equal(report.treeCount, 1); assert.equal(report.transitPoints, 1);
   assert.equal(report.skipped, 1); assert.equal(report.includedFeatures, 3);
 });

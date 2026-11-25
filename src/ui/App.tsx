@@ -13,10 +13,11 @@ import { boundaryKey, boundaryLabel } from '../data/boundary';
 import { readPreference, savePreference, type Theme } from './preferences';
 import type { SceneLighting } from '../three/lighting';
 import { collectSublayers, featureSublayer, isFeatureVisible, type Sublayer, type SublayerVisibility } from '../data/sublayers';
-import { groupSublayers, type SublayerCategory } from '../data/sublayerGroups';
-import { poiStyle, poiStyleForSublayer } from '../data/poiStyle';
+import { groupSublayers } from '../data/sublayerGroups';
+import { poiCategories, poiStyle, poiStyleForSublayer } from '../data/poiStyle';
 import { assignBuildingLandUse, landUseCategoryForSublayer, type BuildingColorMode, type LandUseCategory } from '../data/landUseStyle';
 import { PoiIcon } from '../three/poiIcons';
+import { CategoryBadge } from './CategoryBadge';
 import { DataGuide } from './DataGuide';
 import { useRhinoExport } from '../hooks/useRhinoExport';
 const SiteDashboard = lazy(() => import('./SiteDashboard'));
@@ -36,12 +37,8 @@ function LandUseSwatch({ id }: { id: string }) {
 }
 /** Category colour and icon for a point-of-interest type, matching its badge in the 3D view. */
 function PoiSwatch({ id }: { id: string }) {
-  const style = poiStyleForSublayer(id);
-  return style ? <span className="poi-swatch" style={{ background: style.category.color }} title={style.category.label}><PoiIcon name={style.icon} size={11} color="#ffffff"/></span> : null;
-}
-/** Category badge for a group row: the same colour and icon family as the 3D badges, fills and legend. */
-function CategoryBadge({ category, muted }: { category: SublayerCategory; muted?: boolean }) {
-  return <span className="category-badge" style={{ background: muted ? 'var(--muted)' : category.color }} title={muted ? `${category.label} (colours show with By use)` : category.label}><PoiIcon name={category.icon} size={11} color="#ffffff"/></span>;
+  const { category, icon } = poiStyleForSublayer(id) ?? { category: poiCategories.other, icon: poiCategories.other.icon };
+  return <CategoryBadge category={category} icon={icon} round/>;
 }
 const featureCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'feature' : 'features'}`;
 const roofNames: Record<string, string> = { side_hipped: 'side-hipped', half_hipped: 'half-hipped', lean_to: 'lean-to', conical: 'cone' };
@@ -112,8 +109,26 @@ function App() {
   useEffect(()=>{cancelRhinoExport();},[points,view,cancelRhinoExport]);
   const [selection, setSelection] = useState<{points: Point[]; feature: Feature | null}>();
   const setSelected = useCallback((feature: Feature | null) => { setSelection({points, feature}); if (feature && window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }, [points]);
-  const [layers, setLayers] = useState<Record<LayerName, boolean>>(initialLayers);
-  const [sublayers,setSublayers]=useState<SublayerVisibility>({});
+  const [layerDefaults, setLayerDefaults] = useState<Record<LayerName, boolean>>(initialLayers);
+  const [typeOverrides, setTypeOverrides] = useState<SublayerVisibility>({});
+  const sublayerGroups = useMemo(() => collectSublayers(features), [features]);
+  // Resolve the defaults for rendering and exports. A hidden parent still allows individual types to opt in.
+  const { layers, sublayers, visibleCounts } = useMemo(() => {
+    const layers = { ...layerDefaults };
+    const sublayers: SublayerVisibility = {};
+    const visibleCounts = {} as Record<typeof vectorLayers[number], number>;
+    for (const name of vectorLayers) {
+      let visible = 0;
+      for (const type of sublayerGroups[name]) {
+        const enabled = typeOverrides[type.id] ?? layerDefaults[name];
+        sublayers[type.id] = enabled;
+        if (enabled) visible += type.count;
+      }
+      visibleCounts[name] = visible;
+      if (sublayerGroups[name].length) layers[name] = visible > 0;
+    }
+    return { layers, sublayers, visibleCounts };
+  }, [layerDefaults, sublayerGroups, typeOverrides]);
   const selected = useMemo(() => {
     if (selection?.points !== points || !selection.feature) return null;
     const current = features.find(feature => feature.key === selection.feature!.key);
@@ -170,15 +185,13 @@ function App() {
     navigate('3d');
   };
   const layerCounts = useMemo(() => { const counts = Object.fromEntries(vectorLayers.map(name => [name, 0])); for (const feature of features) counts[feature.layer]++; return counts; }, [features]);
-  const sublayerGroups=useMemo(()=>collectSublayers(features),[features]);
-  const visibleCounts=useMemo(()=>Object.fromEntries(vectorLayers.map(name=>[name,layers[name]?sublayerGroups[name].reduce((sum,type)=>sum+(sublayers[type.id]!==false?type.count:0),0):0])),[sublayerGroups,layers,sublayers]);
   const toggleLayer=(name:LayerName,enabled:boolean)=>{
-    setLayers(previous=>({...previous,[name]:enabled}));
-    if(enabled && name!=='Terrain') setSublayers(previous=>Object.fromEntries(Object.entries(previous).filter(([id])=>!id.startsWith(`${name}|`))));
+    setLayerDefaults(previous => ({ ...previous, [name]: enabled }));
+    if (name !== 'Terrain') setTypeOverrides(previous => Object.fromEntries(Object.entries(previous).filter(([id]) => !id.startsWith(`${name}|`))));
     if(!enabled && selected?.layer===name) setSelected(null);
   };
   const toggleSublayers=(ids:string[],enabled:boolean)=>{
-    setSublayers(previous=>({...previous,...Object.fromEntries(ids.map(id=>[id,enabled]))}));
+    setTypeOverrides(previous=>({...previous,...Object.fromEntries(ids.map(id=>[id,enabled]))}));
     if(!enabled && selected && ids.includes(featureSublayer(selected).id)) setSelected(null);
   };
   const toggleSublayer=(id:string,enabled:boolean)=>toggleSublayers([id],enabled);
@@ -222,7 +235,7 @@ function App() {
           boundary: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } },
           batches: Object.fromEntries(layerGroups.map(group => [group.id, { ...sceneLayers.states[group.id], elementCount: sceneLayers.sources[group.id]?.length || 0 }])),
           visibleLayers: layerNames.filter(name => layers[name]),
-          sublayers: vectorLayers.flatMap(name=>sublayerGroups[name].map(type=>({...type,parent:name,visible:layers[name] && sublayers[type.id]!==false}))),
+          sublayers: vectorLayers.flatMap(name=>sublayerGroups[name].map(type=>({...type,parent:name,visible:sublayers[type.id]}))),
           terrain: terrain ? { ...terrain, source: 'Mapzen Terrarium / AWS elevation-tiles-prod', attribution: 'https://github.com/tilezen/joerd/blob/master/docs/attribution.md' } : null,
         },
       };
@@ -344,15 +357,15 @@ function App() {
                   {buildingColorMode==='landUse' && <ul className="building-use-legend" aria-label="Building use legend">{buildingLegend.map(({category,count})=><li key={category.id}><span className="land-swatch" style={{background:category.color}}/>{category.label}<small>{count.toLocaleString()}</small></li>)}{layerCounts.Buildings>buildingUses!.size && <li><span className="land-swatch unassigned"/>No mapped use<small>{(layerCounts.Buildings-buildingUses!.size).toLocaleString()}</small></li>}</ul>}
                 </div>}
                 {types.length>0 && <div className="sublayer-list" id={groupId} role="group" aria-label={`${name} sublayers`} hidden={!expandedLayers[name]}>{(()=>{
-                  const typeRow=(type:Sublayer)=><label className="sublayer-row" key={type.id}><span>{name==='Points of interest' && <PoiSwatch id={type.id}/>}{name==='Land use' && <LandUseSwatch id={type.id}/>}{type.label}<small>{featureCount(type.count)}</small></span><input type="checkbox" aria-label={`${name}: ${type.label}`} checked={layers[name] && sublayers[type.id]!==false} disabled={!layers[name]} onChange={e=>toggleSublayer(type.id,e.target.checked)}/></label>;
+                  const typeRow=(type:Sublayer)=><label className="sublayer-row" key={type.id}><span>{name==='Points of interest' && <PoiSwatch id={type.id}/>}{name==='Land use' && <LandUseSwatch id={type.id}/>}{type.label}<small>{featureCount(type.count)}</small></span><input type="checkbox" aria-label={`${name}: ${type.label}`} checked={sublayers[type.id]} onChange={e=>toggleSublayer(type.id,e.target.checked)}/></label>;
                   const groups=name==='Terrain'?null:groupSublayers(name,types);
                   if(!groups) return types.map(typeRow);
                   return groups.map(group=>{
-                    const ids=group.types.map(type=>type.id), shown=layers[name]?ids.filter(id=>sublayers[id]!==false).length:0, open=!!expandedGroups[group.key], listId=`${groupId}-${group.category.id}`;
+                    const ids=group.types.map(type=>type.id), shown=ids.filter(id=>sublayers[id]).length, open=!!expandedGroups[group.key], listId=`${groupId}-${group.category.id}`;
                     return <div className="sublayer-group" key={group.key}>
                       <div className="sublayer-group-row">
                         <button className="sublayer-expander" aria-label={`${open?'Hide':'Show'} ${group.category.label} types`} aria-expanded={open} aria-controls={listId} onClick={()=>setExpandedGroups(previous=>({...previous,[group.key]:!open}))}>{open?<ChevronDown size={13}/>:<ChevronRight size={13}/>}</button>
-                        <label className="sublayer-row"><span><CategoryBadge category={group.category} muted={name==='Buildings' && buildingColorMode!=='landUse'}/><span className="sublayer-group-label">{group.category.label}<small>{featureCount(group.count)} · {group.types.length} {group.types.length===1?'type':'types'}</small></span></span><input type="checkbox" aria-label={`${name}: ${group.category.label}`} checked={shown===ids.length && shown>0} ref={input=>{if(input) input.indeterminate=shown>0 && shown<ids.length;}} aria-checked={shown>0 && shown<ids.length?'mixed':shown===ids.length} disabled={!layers[name]} onChange={e=>toggleSublayers(ids,e.target.checked)}/></label>
+                        <label className="sublayer-row"><span><CategoryBadge category={group.category} muted={name==='Buildings' && buildingColorMode!=='landUse'}/><span className="sublayer-group-label">{group.category.label}<small>{featureCount(group.count)} · {group.types.length} {group.types.length===1?'type':'types'}</small></span></span><input type="checkbox" aria-label={`${name}: ${group.category.label}`} checked={shown===ids.length && shown>0} ref={input=>{if(input) input.indeterminate=shown>0 && shown<ids.length;}} aria-checked={shown>0 && shown<ids.length?'mixed':shown===ids.length} onChange={e=>toggleSublayers(ids,e.target.checked)}/></label>
                       </div>
                       <div className="sublayer-list nested" id={listId} role="group" aria-label={`${group.category.label} types`} hidden={!open}>{group.types.map(typeRow)}</div>
                     </div>;

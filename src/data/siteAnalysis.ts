@@ -1,6 +1,9 @@
 import ClipperLib from 'clipper-lib';
 import type { Feature } from './layers.ts';
 import { featureSublayer } from './sublayers.ts';
+import { landUseCategory } from './landUseStyle.ts';
+import { poiStyleForSublayer, poiCategories } from './poiStyle.ts';
+import { palette } from '../three/palette.ts';
 
 type BoundaryPoint = { lat: number; lng: number };
 type Pair = [number, number];
@@ -174,7 +177,8 @@ export function analyzeSite(points: BoundaryPoint[], features: Feature[], onProg
   const bounds = extent(boundary);
   const categories: Record<string, Shape[]> = { buildings: [], water: [], green: [], recreation: [], other: [] };
   const uses = new Map<string, Shape[]>(), buildingRows = new Map<string, { feature: Feature; shapes: Shape[] }>();
-  const amenities = new Map<string, Set<string>>(), trees = new Set<string>(), stops = new Set<string>(), included = new Set<string>();
+  const amenities = new Map<string, { label: string; keys: Set<string> }>();
+  const trees = new Set<string>(), stops = new Set<string>(), included = new Set<string>();
   const lengths = { roads: 0, paths: 0, waterways: 0, rail: 0 };
   let skipped = 0;
   let processed = 0;
@@ -218,7 +222,10 @@ export function analyzeSite(points: BoundaryPoint[], features: Feature[], onProg
       if (feature.tags.natural === 'tree') trees.add(key);
       if (feature.layer === 'Transit') stops.add(key);
       if (feature.layer === 'Points of interest') {
-        const label = featureSublayer(feature).label, ids = amenities.get(label) || new Set<string>(); ids.add(key); amenities.set(label, ids);
+        const { id, label } = featureSublayer(feature);
+        const entry = amenities.get(id) ?? { label, keys: new Set<string>() };
+        entry.keys.add(key);
+        amenities.set(id, entry);
       }
     }
   }
@@ -226,7 +233,13 @@ export function analyzeSite(points: BoundaryPoint[], features: Feature[], onProg
   // Their interiors never overlap, so summing exact clipped areas adds no seams
   // or sampling approximation and avoids deep recursion on city-sized inputs.
   const tileSize = Math.max(100, Math.sqrt((bounds[2] - bounds[0]) * (bounds[3] - bounds[1]) / 64));
-  const covers: AreaMetric[] = [['buildings', 'Building footprints', '#8981c7'], ['water', 'Water', '#5596b7'], ['green', 'Green-designated space', '#719c7a'], ['recreation', 'Recreation & parking', '#c2a273'], ['other', 'Other mapped areas', '#8e9fbd']].map(([id, label, color]) => ({ id, label, color, area: 0 }));
+  const covers: AreaMetric[] = [
+    ['buildings', 'Building footprints', palette.Buildings],
+    ['water', 'Water', palette.Water],
+    ['green', 'Green-designated space', palette['Green spaces']],
+    ['recreation', 'Recreation & parking', palette['Recreation & parking']],
+    ['other', 'Other mapped areas', palette['Land use']],
+  ].map(([id, label, color]) => ({ id, label, color, area: 0 }));
   onProgress?.('Dividing coverage analysis into manageable tiles…');
   const categoryTiles = Object.fromEntries(Object.entries(categories).map(([id, shapes]) => [id, tileShapes(shapes, bounds, tileSize)]));
   const tileKeys = [...new Set(Object.values(categoryTiles).flatMap(tiles => [...tiles.keys()]))];
@@ -271,7 +284,7 @@ export function analyzeSite(points: BoundaryPoint[], features: Feature[], onProg
   onProgress?.('Calculating land-use allocation…');
   return {
     area, perimeter, boundary, includedFeatures: included.size, skipped,
-    covers, landUses: [...uses].map(([id, shapes]) => ({ id, label: humanize(id), area: tiledUnionArea(shapes, bounds, tileSize), color: '#8175d1' })).sort((a, b) => b.area - a.area),
+    covers, landUses: [...uses].map(([id, shapes]) => ({ id, label: humanize(id), area: tiledUnionArea(shapes, bounds, tileSize), color: landUseCategory(id).color })).sort((a, b) => b.area - a.area),
     buildings: {
       count: buildings.length, parts: buildings.filter(row => row.feature.tags['building:part']).length,
       footprint, density: buildings.length / (area / 10000),
@@ -286,6 +299,9 @@ export function analyzeSite(points: BoundaryPoint[], features: Feature[], onProg
       bins, tallest: heights.slice(-6).reverse(),
     },
     lengths, treeCount: trees.size, transitPoints: stops.size,
-    amenities: [...amenities].map(([label, ids]) => ({ label, count: ids.size })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    amenities: [...amenities].map(([id, { label, keys }]) => {
+      const { category, icon } = poiStyleForSublayer(id) ?? { category: poiCategories.other, icon: poiCategories.other.icon };
+      return { id, label, count: keys.size, category, icon };
+    }).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
   };
 }
