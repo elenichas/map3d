@@ -70,10 +70,12 @@ test('complete and empty results are cached; incomplete responses are never cach
   const second=await h.handle(request());assert.equal(second.headers.get('X-Map-Cache'),'HIT');assert.deepEqual(await second.json(),{elements:[]});assert.equal(h.calls.length,2);assert.equal(cache.entries.size,1);
 });
 test('cache failure preserves valid data and duplicate concurrent queries share a single upstream request',async()=>{
-  let finish;
-  const h=harness(()=>new Promise(resolve=>{finish=resolve;}),{match:async()=>{throw Error('cache down');},put:async()=>{throw Error('cache down');}});
+  let finish,lookups=0;
+  const h=harness(()=>new Promise(resolve=>{finish=resolve;}),{match:async()=>{lookups++;throw Error('cache down');},put:async()=>{throw Error('cache down');}});
   const a=h.handle(request()),b=h.handle(request());
-  while(!finish) await new Promise(resolve=>setImmediate(resolve));
+  // Both requests hash off-thread before joining, so wait for both lookups before finishing the upstream call.
+  while(!finish||lookups<2) await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
   finish(success());const results=await Promise.all([a,b]);
   assert.equal(h.calls.length,1);for(const res of results) assert.equal((await res.json()).elements[0].id,42);
 });
@@ -98,12 +100,12 @@ test('last disconnected caller cancels upstream and does not poison the next bou
   assert.equal((await handle(request(geometryQuery(points,'transport')))).status,200);assert.equal(calls,2);
 });
 test('cancelling one subscriber preserves an identical query for another caller',async()=>{
-  let finish,upstream;const aController=new AbortController();
-  const h=harness((_url,init)=>{upstream=init.signal;return new Promise(resolve=>finish=resolve);});
+  let finish,upstream,lookups=0;const aController=new AbortController();
+  const h=harness((_url,init)=>{upstream=init.signal;return new Promise(resolve=>finish=resolve);},{match:async()=>{lookups++;},put:async()=>{}});
   const a=h.handle(new Request('https://app.example/api/interpreter',{method:'POST',body:query,signal:aController.signal}));
   const rejection=assert.rejects(a,{name:'AbortError'});
   const b=h.handle(request());
-  while(!finish)await new Promise(resolve=>setImmediate(resolve));
+  while(!finish||lookups<2)await new Promise(resolve=>setImmediate(resolve));
   await new Promise(resolve=>setImmediate(resolve));aController.abort();await rejection;
   assert.equal(upstream.aborted,false);finish(success());assert.equal((await b).status,200);assert.equal(h.calls.length,1);
 });
@@ -199,11 +201,15 @@ test('managed transient failure honors cooldown without falling back to public s
   time+=46000;assert.equal((await handle(request())).status,200);assert.equal(calls,2);
 });
 test('managed concurrent queries share identical work and defer distinct work without consuming a retry',async()=>{
-  let finish,calls=0;
-  const handle=createMapProxy({apiKey:'test-key',fetch:async()=>{calls++;return new Promise(resolve=>finish=resolve);}});
+  let finish,calls=0,lookups=0;
+  // Each request hashes its query off-thread before the cache lookup, so wait for b's lookup before letting a finish.
+  const cache={match:async()=>{lookups++;},put:async()=>{}};
+  const handle=createMapProxy({apiKey:'test-key',cache,fetch:async()=>{calls++;return new Promise(resolve=>finish=resolve);}});
   const a=handle(request());
   while(!finish)await new Promise(resolve=>setImmediate(resolve));
   const b=handle(request());
+  while(lookups<2)await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
   const busy=await handle(request(geometryQuery(points,'landscape')));
   assert.equal(busy.status,503);assert.equal((await busy.json()).attempted,false);assert.equal(calls,1);
   finish(success());assert.equal((await a).status,200);assert.equal((await b).status,200);
