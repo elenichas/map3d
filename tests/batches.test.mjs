@@ -15,8 +15,11 @@ const building = {
 test('batched building picking and exports retain feature names, roof heights and world orientation', () => {
   const features = [building, { ...building, key:'way/2', geometry: building.geometry.map(p => ({ ...p, lon:p.lon + 40/111320 })) }];
   const batches = buildBatches(features, { lat:0, lng:0 }, null);
-  assert.equal(batches.length, 1);
-  const batch = batches[0];
+  assert.equal(batches.length, 2);
+  const batch = batches.find(b => b.kind === 'mesh'), floors = batches.find(b => b.form === 'floors');
+  // 12 m of wall at 3 m per storey: three slab lines on each of four edges, per building.
+  assert.deepEqual(floors.ranges.map(range => range.name), ['way/1/floors','way/2/floors']);
+  assert.equal(floors.positions.length / 6, 2 * 4 * 3);
   assert.deepEqual(batch.ranges.map(range => range.name), ['way/1','way/1/roof','way/2','way/2/roof']);
   for (const range of batch.ranges) {
     assert.equal(featureAt(batch.ranges, range.start), range.feature);
@@ -30,7 +33,9 @@ test('batched building picking and exports retain feature names, roof heights an
   geometry.setAttribute('position', new THREE.BufferAttribute(batch.positions, 3));
   const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
   mesh.userData.mapBatch = { batch, features };
-  const scene = new THREE.Scene(); scene.add(mesh);
+  const lines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
+  lines.userData.mapBatch = { batch: floors, features };
+  const scene = new THREE.Scene(); scene.add(mesh, lines);
   const exported = collectExportScene(scene);
   assert.deepEqual(exported.root.children.map(child => child.name), batch.ranges.map(range => range.name));
   assert.equal(exported.root.children.reduce((count, child) => count + child.geometry.getAttribute('position').count, 0), batch.positions.length / 3);

@@ -146,14 +146,28 @@ export function geometryQuery(points: { lat: number; lng: number }[], group?: Gr
   }).join('');
   return `[out:json][timeout:25][maxsize:134217728][bbox:${bbox}];(${selection});out body geom;`;
 }
+/** Roof shapes reconstructed in 3D, with the height used when the map gives neither roof:height nor roof:levels. */
+export const roofShapes: Record<string, number> = {
+  gabled: 3, saltbox: 3, hipped: 3, side_hipped: 3, 'half-hipped': 3, half_hipped: 3, pyramidal: 3, gambrel: 4, mansard: 4,
+  skillion: 1.5, lean_to: 1.5, round: 3, dome: 5, onion: 6, cone: 4, conical: 4,
+};
+const FLOOR = 3;
+/** Tall single volumes (naves, towers, halls) whose height says nothing about storeys. */
+const openVolumes = new Set(['church', 'cathedral', 'chapel', 'mosque', 'synagogue', 'temple', 'shrine', 'religious', 'tower', 'water_tower', 'transformer_tower', 'silo', 'storage_tank', 'hangar', 'greenhouse', 'roof', 'carport', 'grandstand', 'stadium', 'sports_hall', 'riding_hall', 'bunker', 'ruins']);
 export function buildingDimensions(tags: Record<string, string>) {
   const metres = (value?: string) => { const n = parseFloat(value || ''); return /(?:ft|')\s*$/.test(value || '') ? n * .3048 : n; };
   const explicit = metres(tags.height), levels = parseFloat(tags['building:levels']);
-  const height = Number.isFinite(explicit) && explicit > 0 ? explicit : Number.isFinite(levels) && levels > 0 ? levels * 3 : 10;
+  const height = Number.isFinite(explicit) && explicit > 0 ? explicit : Number.isFinite(levels) && levels > 0 ? levels * FLOOR : 10;
   const min = metres(tags.min_height), minLevels = parseFloat(tags['building:min_level']);
-  const base = Math.max(0, Math.min(height - .1, Number.isFinite(min) ? min : Number.isFinite(minLevels) ? minLevels * 3 : 0));
-  const supported = ['gabled', 'pyramidal'].includes(tags['roof:shape']);
+  const base = Math.max(0, Math.min(height - .1, Number.isFinite(min) ? min : Number.isFinite(minLevels) ? minLevels * FLOOR : 0));
+  const shape = tags['roof:shape'], supported = Object.prototype.hasOwnProperty.call(roofShapes, shape);
   const roof = metres(tags['roof:height']), roofLevels = parseFloat(tags['roof:levels']);
-  const roofHeight = supported ? Math.min(height - base - .1, Math.max(.1, Number.isFinite(roof) ? roof : Number.isFinite(roofLevels) ? roofLevels * 3 : 2)) : 0;
-  return { height, base, roofHeight, bodyHeight: height - base - roofHeight, estimated: !Number.isFinite(explicit) || explicit <= 0, roofEstimated: supported && !Number.isFinite(roof) && !Number.isFinite(roofLevels) };
+  const roofHeight = supported ? Math.min(height - base - .1, Math.max(.1, Number.isFinite(roof) ? roof : Number.isFinite(roofLevels) && roofLevels > 0 ? roofLevels * FLOOR : roofShapes[shape])) : 0;
+  const bodyHeight = height - base - roofHeight;
+  // Storeys between the base and the roof: mapped levels where present, otherwise one per 3 m of wall.
+  const mappedFloors = Number.isFinite(levels) && levels > 0 ? Math.round(levels - (Number.isFinite(minLevels) && minLevels > 0 ? minLevels : 0)) : NaN;
+  const open = openVolumes.has(tags.building) || openVolumes.has(tags['building:part']) || openVolumes.has(tags.man_made) || Boolean(tags['tower:type']) || Boolean(tags.amenity === 'place_of_worship');
+  // 0 means unknown: no storeys are drawn rather than guessed for an open volume.
+  const floors = Number.isFinite(mappedFloors) && mappedFloors >= 1 ? mappedFloors : open ? 0 : Math.max(1, Math.round(bodyHeight / FLOOR));
+  return { height, base, roofHeight, bodyHeight, estimated: !Number.isFinite(explicit) || explicit <= 0, roofEstimated: supported && !Number.isFinite(roof) && !(Number.isFinite(roofLevels) && roofLevels > 0), floors, floorsEstimated: !(Number.isFinite(mappedFloors) && mappedFloors >= 1) };
 }

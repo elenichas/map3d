@@ -5,6 +5,7 @@ import type { Feature } from '../data/layers';
 import type { MeasurementInput } from './Measurements';
 import { featureForHit, filterSceneHits } from './picking';
 import { visibleHeight } from './viewerMath';
+import { BADGE_PIXELS } from './poiShapes';
 
 /** Pick the current geometry on release. Streaming can replace a batch between
  * pointer-down and click, invalidating R3F's object-identity click gate. */
@@ -27,7 +28,10 @@ export function ScenePicking({ onSelect, interaction }: {onSelect: (feature: Fea
       // Three's default is one world metre: too tiny when zoomed out, too
       // generous up close. Match the rendered line's screen-space hit target.
       const target = (controls as unknown as {target?: THREE.Vector3})?.target || new THREE.Vector3();
-      raycaster.params.Line.threshold = Math.max(.01, visibleHeight(camera, target) / size.height * 3);
+      const metresPerPixel = visibleHeight(camera, target) / size.height;
+      raycaster.params.Line.threshold = Math.max(.01, metresPerPixel * 3);
+      // Icon badges have a constant on-screen size; hit them anywhere within their circle.
+      raycaster.params.Points.threshold = Math.max(.05, metresPerPixel * BADGE_PIXELS / 2);
       raycaster.setFromCamera(pointer, camera);
       const objects: THREE.Object3D[] = [];
       scene.traverseVisible(object => { if (object.userData.mapBatch || object.userData.mapFeature) objects.push(object); });

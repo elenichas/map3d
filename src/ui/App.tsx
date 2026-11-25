@@ -1,9 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined, SlidersHorizontal, Minimize2 } from 'lucide-react';
+import { Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined, SlidersHorizontal, Minimize2, Rows3 } from 'lucide-react';
 import { MapComponent, type Point, type DrawMode } from '../components/map/SelectMap';
 import { Space, type ExportRequest } from '../three/Space';
 import { downloadFile } from '../data/download';
-import { groupForLayer, layerGroups, vectorLayers, initialLayers, buildingDimensions, type Feature, type LayerName } from '../data/layers';
+import { groupForLayer, layerGroups, vectorLayers, initialLayers, buildingDimensions, roofShapes, type Feature, type LayerName } from '../data/layers';
 import { useSceneLayers } from '../hooks/useSceneLayers';
 import { useWorkspaceRoute } from '../hooks/useWorkspaceRoute';
 import { useBoundaryLocation } from '../hooks/useBoundaryLocation';
@@ -12,7 +12,11 @@ import { useSceneTerrain } from '../hooks/useSceneTerrain';
 import { boundaryKey, boundaryLabel } from '../data/boundary';
 import { readPreference, savePreference, type Theme } from './preferences';
 import type { SceneLighting } from '../three/lighting';
-import { collectSublayers, featureSublayer, isFeatureVisible, type SublayerVisibility } from '../data/sublayers';
+import { collectSublayers, featureSublayer, isFeatureVisible, type Sublayer, type SublayerVisibility } from '../data/sublayers';
+import { groupSublayers, type SublayerCategory } from '../data/sublayerGroups';
+import { poiStyle, poiStyleForSublayer } from '../data/poiStyle';
+import { assignBuildingLandUse, landUseCategoryForSublayer, type BuildingColorMode, type LandUseCategory } from '../data/landUseStyle';
+import { PoiIcon } from '../three/poiIcons';
 import { DataGuide } from './DataGuide';
 import { useRhinoExport } from '../hooks/useRhinoExport';
 const SiteDashboard = lazy(() => import('./SiteDashboard'));
@@ -25,11 +29,38 @@ const layerMenuSections: {label: string; layers: LayerName[]}[] = [
   {label: 'Landscape', layers: ['Trees & woodland', 'Green spaces', 'Water', 'Waterways', 'Terrain']},
   {label: 'Places', layers: ['Points of interest', 'Recreation & parking']},
 ];
+/** Fill colour for a land-use type, matching the ground and the buildings coloured by use. */
+function LandUseSwatch({ id }: { id: string }) {
+  const category = landUseCategoryForSublayer(id);
+  return category ? <span className="land-swatch" style={{ background: category.color }} title={category.label}/> : null;
+}
+/** Category colour and icon for a point-of-interest type, matching its badge in the 3D view. */
+function PoiSwatch({ id }: { id: string }) {
+  const style = poiStyleForSublayer(id);
+  return style ? <span className="poi-swatch" style={{ background: style.category.color }} title={style.category.label}><PoiIcon name={style.icon} size={11} color="#ffffff"/></span> : null;
+}
+/** Category badge for a group row: the same colour and icon family as the 3D badges, fills and legend. */
+function CategoryBadge({ category, muted }: { category: SublayerCategory; muted?: boolean }) {
+  return <span className="category-badge" style={{ background: muted ? 'var(--muted)' : category.color }} title={muted ? `${category.label} (colours show with By use)` : category.label}><PoiIcon name={category.icon} size={11} color="#ffffff"/></span>;
+}
+const featureCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'feature' : 'features'}`;
+const roofNames: Record<string, string> = { side_hipped: 'side-hipped', half_hipped: 'half-hipped', lean_to: 'lean-to', conical: 'cone' };
+/** Floors and roof as the viewer draws them, and whether each came from the map or was estimated. */
+function BuildingStructure({ tags }: { tags: Record<string, string> }) {
+  const dimensions = buildingDimensions(tags), shape = tags['roof:shape'];
+  const floors = !dimensions.floors ? 'Floors not mapped' : `${dimensions.floors} ${dimensions.floors === 1 ? 'floor' : 'floors'}${dimensions.floorsEstimated ? ' (estimated from height)' : ''}`;
+  const roof = !shape ? null : roofShapes[shape] !== undefined ? `${roofNames[shape] || shape} roof, ${Math.round(dimensions.roofHeight * 10) / 10} m${dimensions.roofEstimated ? ' (typical height, not mapped)' : ''}` : shape === 'flat' ? 'flat roof' : `roof “${shape}” not modelled, shown flat`;
+  return <p className="hint">{floors}{roof ? ` · ${roof}` : ''}.</p>;
+}
 function App() {
   const [theme,setTheme]=useState<Theme>(()=>readPreference('map3d.theme',['light','dark'],window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
   const [sceneLighting,setSceneLighting]=useState<SceneLighting>(()=>readPreference('map3d.sceneLighting',['day','night'],'day'));
   useEffect(()=>{ document.documentElement.dataset.theme=theme; savePreference('map3d.theme',theme); },[theme]);
   useEffect(()=>{ savePreference('map3d.sceneLighting',sceneLighting); },[sceneLighting]);
+  const [buildingColorMode,setBuildingColorMode]=useState<BuildingColorMode>(()=>readPreference('map3d.buildingColors',['default','landUse'],'default'));
+  useEffect(()=>{ savePreference('map3d.buildingColors',buildingColorMode); },[buildingColorMode]);
+  const [showFloors,setShowFloors]=useState(()=>readPreference('map3d.buildingFloors',['on','off'],'on')==='on');
+  useEffect(()=>{ savePreference('map3d.buildingFloors',showFloors?'on':'off'); },[showFloors]);
   const [drawerMinimized, setDrawerMinimized] = useState(false);
   const [layersMinimized, setLayersMinimized] = useState(() => window.matchMedia('(max-width: 700px)').matches);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -88,7 +119,19 @@ function App() {
     const current = features.find(feature => feature.key === selection.feature!.key);
     return current && isFeatureVisible(current, layers, sublayers) ? current : null;
   }, [selection, points, features, layers, sublayers]);
+  // Places share their map badge with the details card; trees keep the plain layer heading.
+  const selectedPoi = selected?.kind === 'point' && selected.tags.natural !== 'tree' ? poiStyle(selected) : null;
+  // Building use by type or by the land-use area around it, recomputed as layers stream in.
+  const buildingUses = useMemo(() => buildingColorMode === 'landUse' ? assignBuildingLandUse(features) : null, [buildingColorMode, features]);
+  const buildingColors = useMemo(() => buildingUses && new Map([...buildingUses].map(([key, category]) => [key, category.color])), [buildingUses]);
+  const buildingLegend = useMemo(() => {
+    if (!buildingUses) return [];
+    const counts = new Map<string, { category: LandUseCategory; count: number }>();
+    for (const category of buildingUses.values()) { const row = counts.get(category.id); if (row) row.count++; else counts.set(category.id, { category, count: 1 }); }
+    return [...counts.values()].sort((a, b) => b.count - a.count);
+  }, [buildingUses]);
   const [expandedLayers,setExpandedLayers]=useState<Partial<Record<LayerName,boolean>>>({});
+  const [expandedGroups,setExpandedGroups]=useState<Record<string,boolean>>({});
   const {value: terrain, status: terrainState, error: terrainError, retry: retryTerrain} = useSceneTerrain(points, layers.Terrain && sceneStarted);
   const [reset, setReset] = useState(0);
   const [exportRequest, setExportRequest] = useState<ExportRequest>({ id: 0, format: 'glb' });
@@ -134,10 +177,11 @@ function App() {
     if(enabled && name!=='Terrain') setSublayers(previous=>Object.fromEntries(Object.entries(previous).filter(([id])=>!id.startsWith(`${name}|`))));
     if(!enabled && selected?.layer===name) setSelected(null);
   };
-  const toggleSublayer=(id:string,enabled:boolean)=>{
-    setSublayers(previous=>({...previous,[id]:enabled}));
-    if(!enabled && selected && featureSublayer(selected).id===id) setSelected(null);
+  const toggleSublayers=(ids:string[],enabled:boolean)=>{
+    setSublayers(previous=>({...previous,...Object.fromEntries(ids.map(id=>[id,enabled]))}));
+    if(!enabled && selected && ids.includes(featureSublayer(selected).id)) setSelected(null);
   };
+  const toggleSublayer=(id:string,enabled:boolean)=>toggleSublayers([id],enabled);
   const layerStatus = (name: typeof vectorLayers[number]) => {
     const state = sceneLayers.states[groupForLayer(name).id], count = layerCounts[name];
     const countLabel = `${count.toLocaleString()} ${count === 1 ? 'feature' : 'features'}${layers[name] && visibleCounts[name]<count?` · ${visibleCounts[name].toLocaleString()} visible`:''}`;
@@ -271,7 +315,7 @@ function App() {
       </div>}
       <div className="viewport">
         <div className="map-viewport" hidden={view !== 'map'}><MapComponent mode={mode} points={points} onChange={updateBoundary} onDrawingChange={setIsDrawing} target={target}/></div>
-        {view === '3d' && <Space key={boundaryKey(points)} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} onFocus={() => { setSelected(null); setToolsOpen(false); setFocusView(true); }} onMeasureStart={() => { if (window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }} sceneLighting={sceneLighting}/>}
+        {view === '3d' && <Space key={boundaryKey(points)} buildingColors={buildingColors} showFloors={showFloors} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} onFocus={() => { setSelected(null); setToolsOpen(false); setFocusView(true); }} onMeasureStart={() => { if (window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }} sceneLighting={sceneLighting}/>}
         {view === 'dashboard' && <Suspense fallback={<div className="site-calculating">Opening site dashboard…</div>}><SiteDashboard key={boundaryKey(points)} points={points} location={location} data={sceneLayers} analysis={analysis} onMap={returnToMap} onViewer={generate}/></Suspense>}
       </div>
       {view === '3d' && <>
@@ -283,7 +327,6 @@ function App() {
             <button aria-label={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} title={layersMinimized ? 'Expand scene layers' : 'Minimize scene layers'} aria-expanded={!layersMinimized} aria-controls="scene-layers-content" onClick={() => { setToolsOpen(false); if (layersMinimized && window.matchMedia('(max-width: 700px)').matches) setSelected(null); setLayersMinimized(value => !value); }}>{layersMinimized ? <ChevronDown size={17}/> : <ChevronUp size={17}/>}</button>
           </div>
           <div id="scene-layers-content" className="layer-panel-content" hidden={layersMinimized}>
-            <p className="layer-hint" aria-live="polite">{sceneMessage}</p>
             <div className="layer-loading-controls">{loadControls}</div>
             <div className="layer-list" role="region" aria-label="Scene layer list" tabIndex={0}>{layerMenuSections.map(section => <div className="layer-section" key={section.label}><h3 className="layer-section-heading">{section.label}</h3>{section.layers.map(name => {
               const state = name === 'Terrain' ? null : sceneLayers.states[groupForLayer(name).id];
@@ -296,11 +339,30 @@ function App() {
                   {types.length>0 ? <button className="sublayer-expander" aria-label={`${expandedLayers[name]?'Hide':'Show'} ${name} sublayers`} title={`${types.length} ${types.length===1?'sublayer':'sublayers'}`} aria-expanded={!!expandedLayers[name]} aria-controls={groupId} onClick={()=>setExpandedLayers(previous=>({...previous,[name]:!previous[name]}))}>{expandedLayers[name]?<ChevronDown size={14}/>:<ChevronRight size={14}/>}</button>:<span className="sublayer-spacer"/>}
                   <label className="layer-row"><span>{name}<small>{name === 'Terrain' ? !layers.Terrain ? 'Load elevation on demand' : terrainState === 'loading' ? 'Loading elevation…' : terrainState === 'error' ? 'Failed · flat ground shown' : terrain ? `${Math.round(terrain.baseline)}–${Math.round(Math.max(...terrain.elevations))} m elevation` : 'Waiting for scene' : layerStatus(name)}{types.length>1 && <span className="type-count"> · {types.length} types</span>}</small></span><input aria-label={name} type="checkbox" checked={checked} ref={input=>{if(input) input.indeterminate=mixed;}} aria-checked={mixed?'mixed':checked} onChange={e=>toggleLayer(name,e.target.checked)}/></label>
                 </div>
-                {types.length>0 && <div className="sublayer-list" id={groupId} role="group" aria-label={`${name} sublayers`} hidden={!expandedLayers[name]}>{types.map(type=><label className="sublayer-row" key={type.id}><span>{type.label}<small>{type.count.toLocaleString()} {type.count===1?'feature':'features'}</small></span><input type="checkbox" aria-label={`${name}: ${type.label}`} checked={layers[name] && sublayers[type.id]!==false} disabled={!layers[name]} onChange={e=>toggleSublayer(type.id,e.target.checked)}/></label>)}</div>}
+                {name==='Buildings' && layers.Buildings && <div className="building-color-mode">
+                  <div className="building-view-row"><div className="segmented-control compact" role="group" aria-label="Building colours"><button aria-pressed={buildingColorMode==='default'} onClick={()=>setBuildingColorMode('default')} title="Mapped building and roof colours">Mapped</button><button aria-pressed={buildingColorMode==='landUse'} onClick={()=>setBuildingColorMode('landUse')} title="Colour buildings by their type, or by the land use they stand in">By use</button></div><button className="floor-toggle" aria-pressed={showFloors} onClick={()=>setShowFloors(value=>!value)} title="Draw a line at each storey on building facades"><Rows3 size={13}/>Floors</button></div>
+                  {buildingColorMode==='landUse' && <ul className="building-use-legend" aria-label="Building use legend">{buildingLegend.map(({category,count})=><li key={category.id}><span className="land-swatch" style={{background:category.color}}/>{category.label}<small>{count.toLocaleString()}</small></li>)}{layerCounts.Buildings>buildingUses!.size && <li><span className="land-swatch unassigned"/>No mapped use<small>{(layerCounts.Buildings-buildingUses!.size).toLocaleString()}</small></li>}</ul>}
+                </div>}
+                {types.length>0 && <div className="sublayer-list" id={groupId} role="group" aria-label={`${name} sublayers`} hidden={!expandedLayers[name]}>{(()=>{
+                  const typeRow=(type:Sublayer)=><label className="sublayer-row" key={type.id}><span>{name==='Points of interest' && <PoiSwatch id={type.id}/>}{name==='Land use' && <LandUseSwatch id={type.id}/>}{type.label}<small>{featureCount(type.count)}</small></span><input type="checkbox" aria-label={`${name}: ${type.label}`} checked={layers[name] && sublayers[type.id]!==false} disabled={!layers[name]} onChange={e=>toggleSublayer(type.id,e.target.checked)}/></label>;
+                  const groups=name==='Terrain'?null:groupSublayers(name,types);
+                  if(!groups) return types.map(typeRow);
+                  return groups.map(group=>{
+                    const ids=group.types.map(type=>type.id), shown=layers[name]?ids.filter(id=>sublayers[id]!==false).length:0, open=!!expandedGroups[group.key], listId=`${groupId}-${group.category.id}`;
+                    return <div className="sublayer-group" key={group.key}>
+                      <div className="sublayer-group-row">
+                        <button className="sublayer-expander" aria-label={`${open?'Hide':'Show'} ${group.category.label} types`} aria-expanded={open} aria-controls={listId} onClick={()=>setExpandedGroups(previous=>({...previous,[group.key]:!open}))}>{open?<ChevronDown size={13}/>:<ChevronRight size={13}/>}</button>
+                        <label className="sublayer-row"><span><CategoryBadge category={group.category} muted={name==='Buildings' && buildingColorMode!=='landUse'}/><span className="sublayer-group-label">{group.category.label}<small>{featureCount(group.count)} · {group.types.length} {group.types.length===1?'type':'types'}</small></span></span><input type="checkbox" aria-label={`${name}: ${group.category.label}`} checked={shown===ids.length && shown>0} ref={input=>{if(input) input.indeterminate=shown>0 && shown<ids.length;}} aria-checked={shown>0 && shown<ids.length?'mixed':shown===ids.length} disabled={!layers[name]} onChange={e=>toggleSublayers(ids,e.target.checked)}/></label>
+                      </div>
+                      <div className="sublayer-list nested" id={listId} role="group" aria-label={`${group.category.label} types`} hidden={!open}>{group.types.map(typeRow)}</div>
+                    </div>;
+                  });
+                })()}</div>}
                 {state && ['error', 'cancelled'].includes(state.status) && <div className="layer-failure"><details><summary>Why this layer is unavailable</summary><p>{state.message}</p></details><button disabled={loading} title={loading ? 'Other layers are still loading' : `Retry ${name}`} onClick={() => sceneLayers.retry(groupForLayer(name as typeof vectorLayers[number]).id)}>Retry {name}</button></div>}
               </div>;
             })}</div>)}</div>
             {layers.Terrain && terrainState === 'error' && <div className="terrain-error" role="status">{terrainError}<button onClick={retryTerrain}>Retry elevation</button></div>}
+            <p className="layer-hint layer-status" aria-live="polite">{sceneMessage}</p>
           </div>
         </div>
         <div className="viewer-actions">
@@ -308,7 +370,7 @@ function App() {
           {rhinoExport.busy && <button className="rhino-cancel" onClick={()=>{rhinoExport.cancel();setStatus('Rhino export cancelled.');}}>Cancel Rhino export</button>}
           {error && <p className="viewer-feedback error-text" role="alert">{error}</p>}
         </div>
-        {selected && <div className="inspector" role="dialog" aria-label="Feature details"><button className="close" aria-label="Close feature details" onClick={() => setSelected(null)}><X size={18}/></button><div className="eyebrow">{selected.layer === 'Buildings' ? 'BUILDING INSPECTOR' : selected.layer.toUpperCase()}</div><h2>{selected.tags.name || (selected.layer === 'Buildings' ? 'Unnamed building' : selected.tags.amenity || selected.tags.leisure || selected.tags.natural || selected.tags.landuse || selected.tags.highway || selected.layer)}</h2><p className="hint">OpenStreetMap · {selected.type}/{selected.id}</p><dl>{Object.entries(selected.tags).map(([k,v]) => <div key={k}><dt>{k.replace(/_/g, ' ')}</dt><dd>{v}</dd></div>)}</dl>{selected.layer === 'Buildings' && <><p className="hint">{!buildingDimensions(selected.tags).estimated ? 'Height from map data.' : selected.tags['building:levels'] ? 'Height estimated at 3 m per level.' : 'Height unavailable. Displayed at an estimated 10 m.'}</p>{selected.tags['building:part'] && <p className="hint">Mapped building part · elevation offset respected.</p>}{selected.tags['roof:shape'] && <p className="hint">{['gabled', 'pyramidal'].includes(selected.tags['roof:shape']) ? `Roof: ${selected.tags['roof:shape']}${buildingDimensions(selected.tags).roofEstimated ? ' · estimated 2 m roof height' : ''}.` : selected.tags['roof:shape'] === 'flat' ? 'Flat roof from map data.' : `Roof shape “${selected.tags['roof:shape']}” is not reconstructed yet; shown flat.`}</p>}</>}</div>}
+        {selected && <div className={`inspector${selectedPoi ? ' inspector-poi' : ''}`} style={selectedPoi ? { ['--poi-color' as string]: selectedPoi.category.color } : undefined} role="dialog" aria-label="Feature details"><button className="close" aria-label="Close feature details" onClick={() => setSelected(null)}><X size={18}/></button><div className="eyebrow">{selected.layer === 'Buildings' ? 'BUILDING INSPECTOR' : selectedPoi ? `${selectedPoi.category.label} · ${selected.layer}`.toUpperCase() : selected.layer.toUpperCase()}</div><div className={selectedPoi ? 'inspector-poi-heading' : undefined}>{selectedPoi && <span className="poi-badge-large" style={{ background: selectedPoi.category.color }} aria-hidden="true"><PoiIcon name={selectedPoi.icon} size={20} color="#ffffff"/></span>}<h2>{selected.tags.name || (selected.layer === 'Buildings' ? 'Unnamed building' : selected.tags.amenity || selected.tags.leisure || selected.tags.natural || selected.tags.landuse || selected.tags.highway || selected.layer)}</h2></div><p className="hint">OpenStreetMap · {selected.type}/{selected.id}</p><dl>{Object.entries(selected.tags).map(([k,v]) => <div key={k}><dt>{k.replace(/_/g, ' ')}</dt><dd>{v}</dd></div>)}</dl>{selected.layer === 'Buildings' && <><p className="hint">{!buildingDimensions(selected.tags).estimated ? 'Height from map data.' : selected.tags['building:levels'] ? 'Height estimated at 3 m per level.' : 'Height unavailable. Displayed at an estimated 10 m.'}</p>{selected.tags['building:part'] && <p className="hint">Mapped building part · elevation offset respected.</p>}<BuildingStructure tags={selected.tags}/></>}</div>}
       </>}
       {view === '3d' && sceneStarted && (loading || preparing > 0 || failedCount > 0 || stoppedCount > 0 || !features.length) && <div className="scene-notice" role="status">
         {(loading || preparing > 0) && <LoaderCircle size={15} className="spin"/>}

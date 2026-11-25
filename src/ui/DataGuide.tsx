@@ -30,8 +30,10 @@ export function DataGuide() {
         <section aria-labelledby="guide-geometry">
           <h3 id="guide-geometry">How geometry is built</h3>
           <ol>
-            <li>Map coordinates become local coordinates in metres. Area outlines become surfaces; roads and paths become lines; trees and points of interest use symbolic markers.</li>
-            <li>Building footprints are extruded using mapped heights. Missing heights are estimated at 3 m per floor, or 10 m when no floor count exists. Supported roof shapes are simplified; unsupported shapes appear flat.</li>
+            <li>Map coordinates become local coordinates in metres. Land-use areas are drawn flat on the ground in zoning-map colours with a darker outline. Buildings can be coloured by use: a building's own mapped type comes first, otherwise it takes the smallest land-use area containing its centre. Area outlines become surfaces; roads and paths become lines; trees use symbolic markers. Street furniture such as benches, bins, drinking water and toilets appears as simple objects at 1.5× real size, turned to the mapped direction where one is given. Other places get a marker post with an icon badge, coloured by category (food, bars, shops, banks, health, education, arts, tourism, sport, community, cars and transport).</li>
+            <li>In Scene layers, places, land use and buildings are grouped into these same categories. Each group has the colour and icon used in the 3D view, and one checkbox to show or hide all of its types; expand it to toggle single types.</li>
+            <li>Building footprints are extruded using mapped heights. Missing heights are estimated at 3 m per floor, or 10 m when no floor count exists. Gabled, hipped, half-hipped, pyramidal, gambrel, mansard, skillion, barrel, dome, onion and cone roofs are rebuilt from <code>roof:shape</code>, with a typical height when <code>roof:height</code> is missing; other shapes appear flat.</li>
+            <li>Floor lines mark each storey from <code>building:levels</code>, or one every 3 m when only a height is mapped. Churches, towers and halls without a floor count get no lines. Turn them off with <strong>Floors</strong> under Buildings.</li>
             <li>With terrain enabled, sampled elevation shapes the ground and positions features. The result is an approximation, not a surveyed model.</li>
           </ol>
         </section>

@@ -7,10 +7,6 @@ export const palette: Record<VectorLayer, string> = {
   Waterways: '#6099b2', 'Green spaces': '#a8bfa3', 'Land use': '#e6d9ef',
   'Points of interest': '#c879d7', 'Recreation & parking': '#cfbcef',
 };
-export const landColors: Record<string,string> = {
-  residential: '#dedff4', commercial: '#c6b7f0', retail: '#e7c5eb',
-  industrial: '#aab9dd', farmland: '#c6c49f', forest: '#739888', cemetery: '#b0bba9',
-};
 export const sceneColors = {
   roof: '#a1aee0', terrain: '#d9ddf2', trunk: '#8c7c72',
   selectedPoint: '#5b55ef', selectionFill: '#6571f0',

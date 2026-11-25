@@ -23,7 +23,7 @@ test('Rhino round trip retains every geometry layer, nested types, hidden state,
     feature(10,'Land use','area',{landuse:'commercial'}),feature(11,'Points of interest','point',{amenity:'cafe',name:'Corner café'}),feature(12,'Recreation & parking','area',{amenity:'parking'})];
   const {file,result}=read(input(features,{sublayers:{'Roads|highway:service':false}}));
   try {
-    assert.equal(result.featureCount,12);assert.equal(result.objectCount,15);assert.equal(file.groups().count,12);
+    assert.equal(result.featureCount,12);assert.equal(result.objectCount,14);assert.equal(file.groups().count,12);
     const layerList=layers(file),root=layerList.find(l=>l.name==='Map3d');
     assert.deepEqual(layerList.filter(l=>l.parentLayerId===root.id).map(l=>l.name),vectorLayers);
     const roads=layerList.find(l=>l.name==='Roads'),roadChildren=layerList.filter(l=>l.parentLayerId===roads.id);

@@ -35,7 +35,14 @@ test('building parts replace an enclosing outline and height calculations respec
   const part = [{lat:1,lon:1},{lat:1,lon:2},{lat:2,lon:2},{lat:2,lon:1},{lat:1,lon:1}];
   const data = normalizeFeatures([{type:'way',id:1,tags:{building:'yes'},geometry:ring},{type:'way',id:2,tags:{'building:part':'yes'},geometry:part}]);
   assert.equal(data.length,1); assert.equal(data[0].id,2);
-  assert.deepEqual(buildingDimensions({height:'20',min_height:'5','roof:shape':'gabled','roof:height':'3'}), {height:20,base:5,roofHeight:3,bodyHeight:12,estimated:false,roofEstimated:false});
+  assert.deepEqual(buildingDimensions({height:'20',min_height:'5','roof:shape':'gabled','roof:height':'3'}), {height:20,base:5,roofHeight:3,bodyHeight:12,estimated:false,roofEstimated:false,floors:4,floorsEstimated:true});
+  assert.deepEqual([buildingDimensions({'building:levels':'5','building:min_level':'1'}).floors, buildingDimensions({'building:levels':'5'}).floorsEstimated], [4, false]);
+  assert.equal(buildingDimensions({'building:levels':'4','roof:shape':'hipped'}).roofHeight, 3);
+  assert.equal(buildingDimensions({building:'church',height:'60'}).floors, 0);
+  assert.equal(buildingDimensions({building:'church','building:levels':'2'}).floors, 2);
+  assert.equal(buildingDimensions({'building:part':'yes',man_made:'tower',height:'98',min_height:'60'}).floors, 0);
+  assert.equal(buildingDimensions({height:'12','roof:shape':'dome','roof:levels':'1'}).roofHeight, 3);
+  assert.equal(buildingDimensions({height:'12','roof:shape':'flat'}).roofHeight, 0);
   assert.equal(buildingDimensions({height:'100 ft'}).height,30.48);
   assert.equal(buildingDimensions({'building:levels':'4'}).height,12);
   assert.equal(buildingDimensions({height:'-2'}).height,10);

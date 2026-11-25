@@ -7,6 +7,8 @@ import { buildFeatureGeometries, featureColor } from './geometry.ts';
 import { palette, sceneColors } from './palette.ts';
 import { projection } from './batches.ts';
 import { buildTerrainGeometry } from './terrainGeometry.ts';
+import { poiStyle } from '../data/poiStyle.ts';
+import { createPoiGeometry, poiMatrix } from './poiShapes.ts';
 
 export type RhinoExportInput = {
   features: Feature[]; points: {lat:number;lng:number}[]; location: string;
@@ -20,6 +22,7 @@ const rgba = (value:string) => { const color = new THREE.Color(value); return {.
 const rgb = (value:string) => {const color=rgba(value);return {r:Math.round(color.r*255),g:Math.round(color.g*255),b:Math.round(color.b*255),a:255};};
 const sublayerColor=(feature:Feature)=>{
   if(feature.layer==='Land use') return featureColor(feature);
+  if(feature.kind==='point' && feature.tags.natural!=='tree') return poiStyle(feature).category.color;
   let hash=0;for(const char of featureSublayer(feature).id) hash=(Math.imul(hash,31)+char.charCodeAt(0))>>>0;
   return `#${new THREE.Color(palette[feature.layer]).offsetHSL(((hash%7)-3)*.006,((hash%5)-2)*.015,((hash%5)-2)*.012).getHexString()}`;
 };
@@ -140,13 +143,17 @@ export function exportRhino(rhino:RhinoModule, input:RhinoExportInput, onProgres
         try {addMesh(geometry,attr);} finally {geometry.dispose();release(attr);}
       };
       if(feature.kind==='point') {
-        const tree=feature.tags.natural==='tree';
-        const stem=tree?new THREE.CylinderGeometry(.35,.5,4,6):new THREE.CylinderGeometry(.4,.4,4,6);
-        stem.translate(xy.x,ground+2,-xy.y).rotateX(Math.PI/2);
-        saveMesh(stem,tree?'Trunk':'Stem',tree?sceneColors.trunk:undefined);
-        const marker=tree?new THREE.IcosahedronGeometry(3.5,0):new THREE.SphereGeometry(2.5,8,6);
-        marker.translate(xy.x,ground+(tree?6:5),-xy.y).rotateX(Math.PI/2);
-        saveMesh(marker,tree?'Crown':'Marker');
+        if(feature.tags.natural==='tree') {
+          const trunk=new THREE.CylinderGeometry(.35,.5,4,6);trunk.translate(xy.x,ground+2,-xy.y).rotateX(Math.PI/2);
+          saveMesh(trunk,'Trunk',sceneColors.trunk);
+          const crown=new THREE.IcosahedronGeometry(3.5,0);crown.translate(xy.x,ground+6,-xy.y).rotateX(Math.PI/2);
+          saveMesh(crown,'Crown');
+        } else {
+          // Same symbolic shape as the viewer: furniture objects or a venue marker post, in the category colour.
+          const style=poiStyle(feature), shape=createPoiGeometry(style.form);
+          shape.applyMatrix4(poiMatrix(xy.x,ground,-xy.y,feature.tags,style.form)).rotateX(Math.PI/2);
+          saveMesh(shape,style.form==='marker'?'Marker':style.category.label);
+        }
       } else {
         const geometries=buildFeatureGeometries(feature,project,activeTerrain);
         try {

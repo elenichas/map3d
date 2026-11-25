@@ -6,6 +6,9 @@ import type { Feature } from '../data/layers.ts';
 /** A forgiving world-space line hit must not steal a visibly separate surface. */
 export function filterSceneHits(hits: THREE.Intersection[], { camera, pointer, size }: Pick<RootState, 'camera' | 'pointer' | 'size'>) {
   const nearestSolid = hits.find(hit => (hit.object as THREE.Mesh).isMesh);
+  // Icon badges draw on top of everything, so a click on one wins over what lies in front of or behind it.
+  const badge = hits.find(hit => (hit.object as THREE.Points).isPoints);
+  if (badge) return [badge];
   return hits.filter(hit => {
     if (!(hit.object as THREE.Line).isLine) return true;
     const screen = hit.point.clone().project(camera);
@@ -21,6 +24,7 @@ export function featureForHit(hit: THREE.Intersection): Feature | undefined {
   const metadata = hit.object.userData.mapBatch;
   if (!metadata) return hit.object.userData.mapFeature;
   const { batch, features } = metadata;
-  const index = batch.kind === 'instances' ? batch.indices?.[hit.instanceId!] : featureAt(batch.ranges, batch.kind === 'line' ? hit.index! : hit.faceIndex! * 3);
+  // Badges are THREE.Points, which report the hit vertex as `index`.
+  const index = batch.kind === 'instances' ? batch.indices?.[hit.instanceId!] : batch.kind === 'badges' ? batch.indices?.[hit.index!] : featureAt(batch.ranges, batch.kind === 'line' ? hit.index! : hit.faceIndex! * 3);
   return index === undefined ? undefined : features[index];
 }
