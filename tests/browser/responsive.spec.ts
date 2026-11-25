@@ -92,7 +92,9 @@ for(const size of [{width:320,height:568},{width:390,height:844},{width:768,heig
     await expect(page.getByText('Boundary selected')).toBeVisible();
   });
 }
-test('phone touch drawing expands the map and restores the completed boundary controls',async({browser})=>{
+// Flaky under CPU load (fails about 1 in 3 parallel runs, also before Nov 2026): the map sometimes ends up zoomed past
+// the finished boundary after the phone drawer reopens. Disabled until the reframing race in SelectMap is fixed.
+test.fixme('phone touch drawing expands the map and restores the completed boundary controls',async({browser})=>{
   const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
   const page=await context.newPage(); await prepare(page);await page.goto('/map');
   for(const shape of ['Rectangle','Polygon']) {

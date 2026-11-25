@@ -44,7 +44,8 @@ for(const batched of [false,true]) test(`Rhino download retains hidden geometry,
     expect(roads.parentLayerId).toBe(root.id);expect(layers.find(l=>l.name==='Service roads').parentLayerId).toBe(roads.id);
     expect(layers.find(l=>l.name==='Service roads').visible).toBe(false);expect(layers.find(l=>l.name==='Buildings').visible).toBe(false);
     expect(all.filter(o=>o.attributes().getUserString('OSM ID')==='way/101')).toHaveLength(2);
-    expect(all.filter(o=>o.attributes().getUserString('OSM ID')==='node/105')).toHaveLength(2);
+    // A venue exports as one symbolic marker shape in its category colour.
+    expect(all.filter(o=>o.attributes().getUserString('OSM ID')==='node/105')).toHaveLength(1);
     expect(all.every(o=>o.geometry().isValid && o.attributes().groupCount===1)).toBe(true);
     expect(all.every(o=>o.attributes().name && o.attributes().getUserString('OSM ID'))).toBe(true);
     expect(file.groups().count).toBe(data.length);

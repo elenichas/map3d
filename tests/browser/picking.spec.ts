@@ -6,11 +6,12 @@ for(const large of [false,true]) {
     await expect.poll(()=>page.evaluate(()=>(window as any).__picking?.ready)).toBe(true);
     await page.getByLabel('View direction',{exact:true}).selectOption('top');
     await expect.poll(()=>page.evaluate(()=>(window as any).__picking.direction[1])).toBeCloseTo(1,3);
-    // A selected point also has a DOM label in the batched rendering path.
+    // A selected point also has a DOM label in the batched rendering path; like the icon badges it stays readable over roofs.
     await page.getByRole('button',{name:'Select indoor cafe',exact:true}).click();
-    await expect(page.getByRole('button',{name:'Inspect Indoor cafe',exact:true})).toBeHidden();
+    await expect(page.getByRole('button',{name:'Inspect Indoor cafe',exact:true})).toBeVisible();
     const click=async(point:number[])=>{const p=await page.evaluate(point=>(window as any).__screenPoint(point),point);await page.mouse.click(p.x,p.y);};
-    await click([0,20.2,0]);
+    // The roof stays selectable anywhere outside the indoor cafe's badge.
+    await click([6,20.2,-6]);
     await expect(page.locator('output')).toHaveText('building');
     await click([-25,5,0]);
     await expect(page.locator('output')).toHaveText('outdoor-cafe');
@@ -21,10 +22,9 @@ for(const large of [false,true]) {
     await click([0,5,0]);
     await expect(page.locator('output')).toHaveText('indoor-cafe');
     await expect(page.getByRole('button',{name:'Inspect Indoor cafe',exact:true})).toBeVisible();
-    // Layer changes must update occlusion without needing an orbit or zoom.
     await page.getByRole('button',{name:'Toggle buildings',exact:true}).click();
-    await expect(page.getByRole('button',{name:'Inspect Indoor cafe',exact:true})).toBeHidden();
-    await click([0,20.2,0]);
+    await expect.poll(()=>page.evaluate(()=>(window as any).__picking.buildings)).toBeGreaterThan(0);
+    await click([6,20.2,-6]);
     await expect(page.locator('output')).toHaveText('building');
     await page.screenshot({path:`test-results/picking-all-layers${large?'-batched':''}.png`});
   });
@@ -50,7 +50,7 @@ test('a streamed batch replacement between press and release still selects the c
   await expect.poll(()=>page.evaluate(()=>(window as any).__picking?.ready)).toBe(true);
   await page.getByLabel('View direction',{exact:true}).selectOption('top');
   await expect.poll(()=>page.evaluate(()=>(window as any).__picking.direction[1])).toBeCloseTo(1,3);
-  const position=await page.evaluate(()=>(window as any).__screenPoint([0,20.2,0]));
+  const position=await page.evaluate(()=>(window as any).__screenPoint([6,20.2,-6]));
   const original=await page.evaluate(()=>(window as any).__picking.buildingObject);
   await page.mouse.move(position.x,position.y);await page.mouse.down();
   await page.getByRole('button',{name:'Stream updated geometry'}).evaluate((button:HTMLButtonElement)=>button.click());
