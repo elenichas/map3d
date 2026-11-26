@@ -619,7 +619,13 @@ test('map and viewer routes restore history boundaries, reload, and handle an em
   await page.getByRole('checkbox',{name:'Roads',exact:true}).uncheck();
   const loaded=requests;
   await page.goBack();await expect(page).toHaveURL('/map');
-  const original=await page.locator('.boundary-selection').getAttribute('d');
+  // The map animates onto the boundary; record its outline only once that has settled.
+  const settledOutline=async()=>{
+    let previous='';
+    await expect.poll(async()=>{const current=await page.locator('.boundary-selection').getAttribute('d')||'';const settled=current!==''&&current===previous;previous=current;return settled;},{intervals:[400]}).toBe(true);
+    return previous;
+  };
+  const original=await settledOutline();
   await page.goForward();await expect(page).toHaveURL('/viewer');
   await expect(page.getByRole('checkbox',{name:'Roads',exact:true})).not.toBeChecked();
   expect(requests).toBe(loaded);
