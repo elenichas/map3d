@@ -1,115 +1,287 @@
-<p align='center'>
-<h1 align='center'>🗺️ map3d</h1>
-<p align='center'>Generate a real world 3D map</p>
-</p>
+# map3d
 
-<p align='center'>
-<a href="https://map.fleet.im/">Visit Website</a> · <a href="https://github.com/cartesiancs/map3d/issues">Report Bugs</a>
-</p>
+**Turn any place on Earth into an explorable 3D site model and an instant site analysis.**
 
-![img](./.github/screenshot.png)
+Draw a boundary on the map, and map3d builds a 3D scene from OpenStreetMap: buildings coloured by use, roads, transit, water, green space, trees and places. It adds a sun and shadow study, live weather, and a site dashboard you can download as a PDF report.
 
-## About The Project
-
-This is a 3D building mapping service implemented with [React-Three-Fiber](https://github.com/pmndrs/react-three-fiber). It allows exporting as a GLB file, and all features are free to use. Based on this project, various functionalities such as **digital twin**, **drone surveying**, and **GPS markers** can be implemented.
-
-The map files are based on OpenStreetMap data.
+![3D viewer](./.github/screenshots/viewer.png)
 
 > [!IMPORTANT]
-> 📢 <strong>This project cannot guarantee the accuracy of the data.</strong> Since it uses OpenStreetMap data, some height values may be missing or incorrectly recorded. To address this issue, an option will be added in the future to allow users to manually correct the data.
+> map3d uses community-mapped OpenStreetMap data. Heights, uses and other tags can be missing or wrong. All figures are indicative and are not a survey, zoning assessment or planning calculation. Verify independently and use at your own risk.
 
-## Roadmap
+---
 
-- [x] Create 3D Buildings
-- [x] Create Roads
-- [x] Export GLB
-- [ ] Building Texture
-- [ ] Height Customization
-- [ ] Material
-- [ ] Heightmap
+## Contents
 
-## Demo
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Using the app](#using-the-app)
+- [Data sources and attribution](#data-sources-and-attribution)
+- [How the numbers are calculated](#how-the-numbers-are-calculated)
+- [Project structure](#project-structure)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Credits and licence](#credits-and-licence)
 
-https://github.com/user-attachments/assets/1b61c2f8-dcf9-40bb-9804-59f6a74594dc
+---
 
-## Contributors
+## Features
 
-Hyeong Jun Huh [(GitHub)](https://github.com/DipokalLab)
+### 3D viewer
+- **Real-world scene from OpenStreetMap:** buildings (with mapped roofs and building parts), roads, walking and cycling paths, transit, trees, water, waterways, green spaces, land use, recreation and places of interest.
+- **Buildings coloured by use**, such as commercial, residential, civic and religious, with storey lines on facades. Both are on by default and can be switched to mapped colours.
+- **Optional terrain** from open elevation tiles.
+- **Camera tools:**
+  - Perspective or isometric view, plus a view cube with preset directions.
+  - A focus mode that hides the interface.
+  - A live scale bar.
+  - A **Measure** tool for 3D, horizontal and height distances.
+- **Inspector:** click any building or feature to see its OpenStreetMap tags.
+- **Light and dark themes**, and a **Scene light** setting of Auto, Day or Night.
 
-## License
+### Layers and legend
+- **Layer drawer:**
+  - Filter box that finds layers, categories and individual types.
+  - **All on / All off** and **Expand all**.
+  - A switch for each section.
+  - Hover **Only** buttons to isolate a layer, category or type.
+  - Unticking a layer hides its items, but they stay selectable, so you can tick a few to show just those.
+- **Floating legend:** explains every colour on screen. Each entry is also a show/hide switch, and the panel holds the Mapped / By use and Floors controls.
 
-MIT License
+### Sun and shadow study
 
-## Run and verify this fork
+![Sun study](./.github/screenshots/sun-study.png)
 
-Use Node.js 24 (minimum 22.18), then `npm ci --ignore-scripts` and `npm run dev`.
+- **Sun position:** worked out from the site's latitude, a date (Winter, Equinox and Summer presets, or any date) and a solar time.
+- **Shadows:** buildings and trees cast real-time shadows. You can animate a whole day from sunrise to sunset.
+- **Sunlight hours:** colours open ground by hours of direct sun, with the share of ground that gets at least 4 hours.
 
-### Studio workflow
+### Live weather
+- **Current conditions at the site** from [Open-Meteo](https://open-meteo.com): temperature, feels-like, wind, cloud cover, humidity and precipitation, plus the site's local time.
+- **Auto scene light** switches the viewer to night when it is night at the site.
+- **Weather in the scene:**
+  - Clouds dim the light and turn the sky grey, and fog closes in.
+  - Rain and drizzle fall, angled by the real wind direction, and snow drifts.
+  - Thunderstorms flash.
+- **Switches:** live weather and the 3D effects can each be turned off, and both choices are remembered.
 
-- Open **Data & guide** in the map or viewer footer for data sources, geometry and height estimates, the original repository, and accuracy limitations. The guide includes OpenStreetMap/ODbL and terrain credits and a clear use-at-your-own-risk notice for the app and its exports.
-- Search for a city, address, or postcode and choose a result.
-- Choose **Rectangle** and click two opposite corners, or choose **Polygon**, click vertices, then click **Finish polygon**, the first vertex, or press Enter. Both tools show a live cursor preview and fixed-vertex markers; Escape cancels the draft.
-- Select a boundary, then click **Generate 3D scene**. There is no area cap, allowing larger-area testing.
-- The viewer opens immediately. Buildings, transport, landscape, and places/recreation load in four sequential batches and appear as they arrive. Batches containing enabled layers go first, with buildings first among equally visible batches. Layer rows distinguish queued, loading, waiting for an automatic retry, loaded, empty, failed, and stopped data. A failed batch does not discard other geometry or block later batches. Layers sharing a batch share its request status.
-- Failed or stopped batches can be retried from a layer row, or together with **Retry unavailable layers**, once current background loading finishes. **Stop loading layers** keeps completed batches. Updating the boundary aborts old requests and clears the old scene. A progress notice remains visible when the tools drawer is minimized.
-- Overpass requests automatically use an available server and remember the server that last succeeded. A rate limit triggers a per-server cooldown respecting `Retry-After`, with increasing waits of at least 30, 60, then 120 seconds plus jitter. If both servers are busy, a countdown communicates the automatic background retry; loaded layers remain usable. Retries are bounded by six attempts and a three-minute budget per batch. Other transient failures receive up to two attempts; invalid requests fail without retrying. Stopping loading or changing the boundary cancels pending retries. Successful responses, including empty results, are cached in memory for five minutes (up to twelve batches).
-- In 3D, the map-only search and drawing sidebar is hidden. Minimize or expand **Scene layers** without changing toggles or loading. Camera reset and download controls live in the top toolbar. Drag to orbit, right-drag to pan, and scroll to zoom. **Reset camera** frames the boundary. The viewer renders on demand when scene data or the camera changes, avoiding continuous rendering while idle.
-- A metric scale bar follows zoom in both map and viewer. The perspective legend is approximate at the camera's focus depth because scale varies with depth. The orthographic legend measures the view plane; a tilted ground plane is foreshortened. Use **Top** for a north-up plan scale. The bar describes the on-screen view, not a fixed physical printing ratio.
-- **Perspective / Isometric** switches camera projection without rebuilding the model. Isometric uses an orthographic camera at an equal-axis angle and retains the focus and apparent scale. Orbiting remains available afterward. Click the rotating view cube or choose its menu for top, bottom, front (south), back (north), left (west), right (east), or the isometric angle. View changes keep the current pan target and zoom and animate briefly; **Reset camera** reframes the boundary.
-- **Measure** enables point-to-point measurements on visible model geometry, including roofs, batched features, and elevation, with the reference ground as a fallback in empty space. Click two points; a live preview follows the second endpoint. Each result shows straight-line 3D length, horizontal length, and absolute height difference in metres or kilometres. Dragging still orbits and does not place an endpoint; right-drag pans and scrolling zooms. Escape cancels the pending point, then exits the tool. Completed dimensions remain until individually removed or cleared, and disappear when leaving the viewer. Measurements and navigation helpers are excluded from model downloads. Values describe the displayed model, including estimated building heights; they are not surveyed dimensions.
-- **Appearance** switches the interface between light and dark themes, including map controls and panels. **Scene lighting** independently switches the 3D background, lights, and reference grid between day and night. The palette uses pale lavender panels, cyan-to-violet accents, and cool periwinkle buildings. Natural features retain recognizable, muted colors: sage parks, deeper green woodland, warm brown trunks, soft blue water, and earthy farmland. These shared colors also carry into GLB and Rhino exports. Night uses cool moonlight with a subtle violet fill. Both choices are saved locally; the initial interface theme follows the system preference. Changing either setting preserves loaded data, camera position, and selection.
-- Click a building, tree, place marker, path, or other feature to inspect its map tags. Selected buildings and area features receive a cyan-and-violet halo, a bright contour, and a subtle fill tint; roof edges and courtyard boundaries are included. The selection overlay renders only for the active feature, respects occlusion, and is excluded from downloads. Close the inspector or click empty space to dismiss it.
-- Toggle buildings, roads, walking/cycling, transit, trees/woodland, water, waterways, green spaces, land use, points of interest, and recreation/parking. Counts show mapped features; zero counts explicitly say **No mapped data here**. Land use and POIs start hidden to keep the scene readable.
-- Expand the arrow beside a vector layer to see its loaded sublayers and counts: road classes, POI types, building types, land uses, and other tagged categories. Each type has an independent visibility checkbox. Parent checkboxes show a partial state when some children are hidden; checking a parent enables all its types, and unchecking it hides the group. Hidden types are excluded from inspection and GLB/OBJ downloads; hiding the selected type dismisses its inspector and halo. Filtering makes no extra map requests. The batched viewer retains prepared data and toggles subtype chunks without rebuilding unrelated geometry. New mapped types appear as background batches arrive; unknown tag values remain available as separate types.
-- Ground surfaces use a stable visual order: land use, green spaces, woodland, recreation/parking, then water. Smaller areas draw after broader areas within each small scene or spatial chunk. Surface overlays retain depth testing against terrain and buildings, but do not write competing depth values; polygon offset separates them from the ground. The reference grid stays behind them. This display priority does not resolve conflicting OSM classifications or alter the raw data.
-- Turn on **Terrain** to load elevation independently. Loading and failure states are separate from the vector layers, with **Retry elevation** on failure. Turning it off restores flat ground; downloaded elevation is reused until you change the boundary.
-- **GLB** and **OBJ** in the top toolbar download the currently loaded, visible geometry, including enabled terrain and mapped roofs. GLB retains materials; OBJ exports geometry in metres with Y up, without material files. Downloads remain available when the layers panel is minimized.
-- **3DM** downloads a native Rhino 7+ file containing **all loaded geometry**, including hidden layers and sublayers. The hierarchy is `Map3d → parent layer → feature type`; parent colors follow the scene palette and subtypes use related shades. Layer visibility carries over to Rhino. Every mapped feature has a named group (including building/roof and tree/marker parts), named objects with OSM IDs, original tags in user text, and layer materials; mapped building colors and roof/trunk colors are retained. Buildings, areas, markers, trees, and terrain are meshes; roads and other paths are continuous editable polyline curves. Coordinates are local metres, X east/Y north/Z up, with the boundary origin recorded in the Earth anchor and document user text. Geometry uses terrain elevation only when enabled in the viewer; previously loaded terrain is still included as a hidden layer when off. This is a model approximation, not surveyed CAD or NURBS solids. The file includes OSM/ODbL attribution, accuracy notice, boundary, layer load states, and terrain credits. Downloads taken while data are loading or unavailable are marked as partial snapshots. Rhino conversion runs in a separate worker, loads its bundled WASM only on demand, reports progress, and can be cancelled; returning to the map or changing the boundary cancels an in-progress export. Scene selection, navigation helpers, and measurements are excluded.
-- **Raw data** downloads `map-data.json`: deduplicated, unmodified OSM source elements from all completed batches, including hidden layers and sublayers, plus the boundary as a GeoJSON polygon, batch statuses/counts, parent and sublayer visibility settings, and sampled elevation if loaded. Partial downloads identify unfinished or unavailable batches. Terrain is a sampled grid, not the original tile images.
-- **Back to map** in the viewer returns to `/map` at the same map position and reopens the map tools. **Generate 3D scene** opens `/viewer`; there is no mode switch on the map. Browser Back/Forward restore the boundary associated with each history entry and reuse the current scene when its boundary is unchanged. Draw a replacement boundary and generate another scene. The existing scene stays available until a new boundary is committed. Refreshing `/viewer` restores its boundary and reloads data; the last boundary and location are saved for this tab only. Opening `/viewer` without a saved boundary redirects to `/map`.
+### Site dashboard and reports
 
-**Site dashboard** opens `/dashboard` from the top toolbar once a boundary is selected. It reuses all loaded features, including hidden layers, and loads the same four batches if needed. The dashboard reports actual polygon area/perimeter, merged building coverage, mapped building/part density, height distribution and data completeness, indicative floor area/FAR, mapped green-designation and water coverage, land-use tags, clipped road/path/rail/waterway lengths, tree/transit points, and amenity counts. Missing source batches are identified rather than displayed as zero. Switch hectares/square metres and download a JSON report containing metrics, units, boundary, source statuses, attribution and calculation methods.
+![Site dashboard](./.github/screenshots/dashboard.png)
 
-Statistics run in a cancellable background worker with stage updates and reuse completed analysis when navigating back. Local planar polygon clipping respects concave boundaries, overlaps and courtyard holes. Millimetre integer coordinates keep nearly coincident edges stable; disjoint spatial tiles bound individual coverage operations without area sampling. Floor area merges overlapping parts by vertical band only within spatially connected building groups. Heights without explicit tags or valid levels are excluded from height/floor statistics; the viewer's 10 m default is never included. Green designation is a proxy, not measured vegetation/canopy. Building counts include parts and are not dwelling/population counts. Land-use designations can overlap and are not zoning. Results are indicative, affected by missing/incorrect OSM data and projection accuracy over large regions; verify independently and use at your own risk.
+**Headline numbers:** site area, building coverage, green space and mean building height, each with a small chart.
 
-The three routes use browser history without a page reload. Production hosting must serve `index.html` for `/map`, `/viewer` and `/dashboard` (Vite dev/preview already supports this fallback). Opening the dashboard without a saved boundary redirects to `/map`.
+**Cards:**
 
-Search uses Nominatim on explicit submission. Each geometry batch uses an Overpass query scoped to the drawn polygon and bounding box, fetching OSM nodes, ways, and multipolygon relations. All four batches are requested sequentially, with at least 750 ms between uncached request starts, to avoid bursts on public map servers. Transport node queries only fetch relevant stops and stations; road and rail ways are retained. Unsupported route and site relations are excluded; queries request 25 seconds and 128 MiB of server resources. Each server attempt has a 40-second client deadline, including response decoding. Fragmented polygon rings and courtyard holes are reconstructed. Mapped building parts replace enclosing outer volumes; mapped name/address/use/colour tags are inherited from the outer building. Heights use tagged height (metres or feet), then 3 m per tagged level, then a disclosed 10 m fallback. Minimum heights and building minimum levels are respected. Flat, gabled, and pyramidal roofs are supported; gabled/pyramidal roofs use tagged roof height or levels, then a disclosed 2 m estimate. Other roof shapes remain flat and are identified in the inspector. Pyramidal roofs use a bounding-box approximation on irregular footprints. Complex building relation hierarchies are not fully reconstructed.
+| Card | Shows |
+| --- | --- |
+| **Site plan** | A top-down plan of the boundary in the viewer's colours, with a scale bar, north arrow and key counts. |
+| **Site coverage** | A dot chart and bars of buildings, water, green space, recreation and other land. |
+| **Building intensity** | A floor area ratio gauge, buildings by use, density and indicative floor area. |
+| **Building heights** | A height histogram and the tallest buildings drawn side by side to scale. |
+| **Land-use allocation**, **Landscape and movement**, **Places and amenities** | Bars, line swatches, tree icons and place badges. |
+| **Sunlight on open ground** | A map of hours of direct sun, with Winter, Equinox and Summer presets. |
+| **Data coverage and methodology** | Which source batches loaded, with the calculation method on demand. |
 
-Terrain uses public [Mapzen Terrarium tiles](https://github.com/tilezen/joerd/blob/master/docs/formats.md) from the AWS elevation-tiles-prod bucket, with [source attribution](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) linked in the viewer. A 49 × 49 local elevation surface is sampled from at most nine adaptive-zoom tiles. Line networks and area surfaces are draped; buildings and markers are anchored at sampled ground elevation. Buildings use a single foundation elevation, so sloped foundations, bridge/tunnel clearance, and hydrologically level water are not modelled. The ground surface spans the boundary's bounding rectangle. Elevation resolution and mapping detail vary by location. Map tiles, search, vector geometry, and elevation require an internet connection.
+![Sunlight card](./.github/screenshots/sunlight-card.png)
 
-- `npm run build`: TypeScript checks and production bundle
-- `npm run lint`: JavaScript correctness and React hook checks
-- `npm test`: offline layer normalization, building height, elevation interpolation, road loading, automatic retries, cooldowns, caching, and cancellation tests
-- Rhino tests reopen native `.3dm` bytes with McNeel's reader and verify every geometry layer, nested visibility, groups, colors/materials, source metadata, metric Z-up coordinates, courtyard voids, roof peaks, terrain, and disconnected relation pieces.
-- `npx playwright install chromium && npm run test:e2e`: browser tests covering selection, layer counts/toggles, feature inspection, visible-layer export, incremental loading with partial failures, targeted retries, automatic rate-limit recovery, cooldown cancellation, live drawing previews, map/viewer navigation, panel minimization, OBJ/raw-data downloads, mobile viewer layout, and elevation failure/retry/caching
-- `VITE_MAP_DATA_TRANSPORT=direct npm run build` followed by `PLAYWRIGHT_PREVIEW=1 npm run test:e2e -- tests/browser/map.spec.ts tests/browser/rhino.spec.ts`: check the real app routes and bundled Rhino worker/WASM against the production build. Renderer harness tests need the development server and are covered by the normal full suite.
+**Downloads:**
+- **Download PDF report:** an A4 report with every card plus a methodology page.
+- **Download data (JSON):** all metrics, the boundary, source statuses and methods.
 
-Browser tests use synthetic geometry; they do not verify live service availability or map accuracy.
+<img src="./.github/screenshots/pdf-report.png" alt="PDF report, first page" width="360">
 
+### Exports
 
-### Map-data service and Cloudflare deployment
+| Button | File | Contents |
+| --- | --- | --- |
+| **GLB** | `scene.glb` | Visible layers with materials |
+| **OBJ** | `scene.obj` | Visible geometry, metres, Y up, no materials |
+| **3DM** | Rhino 7+ file | All loaded geometry, including hidden layers, as a `Map3d → layer → type` hierarchy. Includes OSM IDs and tags, colours, and metric coordinates (Z up). |
+| **Raw data** | `map-data.json` | Unmodified OSM elements, the boundary, batch statuses, layer visibility and sampled elevation |
 
-`npm run build` includes a bundled Pages Advanced Mode `_worker.js` and `_routes.json`. Upload the **contents** of `dist` (or a ZIP of those contents) to Cloudflare Pages, including these two files. Only `/api/interpreter` invokes the Worker; static assets and the map/viewer routes use Pages normally. For prompt upstream cancellation on browser disconnect, enable the Cloudflare Workers `enable_request_signal` compatibility flag in the project runtime configuration (or Wrangler `compatibility_flags`). Without that host capability, the gateway still bounds each upstream attempt to 35 seconds and ignores obsolete results in the browser. No private API keys are required. Pages Functions use the account's Workers request allowance; monitor that allowance as traffic grows.
+---
 
-The app calls this same-origin endpoint instead of connecting directly from the browser to public Overpass servers. The gateway identifies Map3d Studio with its repository URL, form-encodes the query, and does not forward browser Origin or Referer headers. Vite dev and preview provide the same endpoint locally. The service accepts only this app's generated polygon queries, limits query bytes, tries the independent backup after a failure, respects service cooldowns, and spaces uncached upstream requests. Only complete responses (including valid empty results) are cached for 15 minutes in Cloudflare's local edge cache; identical concurrent requests in one Worker instance are shared. Cache keys contain a hash of the public map query. Caching and pacing are per edge location/isolate, not an account-wide rate limiter.
+## Quick start
 
-Four initial batches share a paced queue with one in-flight request. A failed batch yields to ready batches instead of holding the queue during retries. After two query-specific failures, it splits into independently recoverable selector requests; successful fragments appear immediately and are deduplicated. Each fragment gets at most three attempts, with a six-minute recovery window and a 48-request cap per scene load. Rate-limit cooldowns remain service-wide and respect Retry-After. Query-specific failures do not accumulate long service penalties for new boundaries. Browser unload, cancellation and boundary replacement abort current work; the gateway cancels an upstream fetch when its last connected caller leaves (subject to the host reporting disconnects). Already accepted jobs on a public Overpass server may still run until its timeout. Only completed, validated query results are cached; unfinished jobs and their retry counts are never persisted. Layer status distinguishes downloading, queued and waiting to retry. Large/dense boundaries can still exceed the public map servers' resource limits.
+Requires **Node.js 22.18 or newer**; Node 24 is recommended.
 
-Recovery uses increasing per-job waits, rotating healthy services where available. Gateway failures include bounded upstream diagnostics and distinguish query failures from service-wide cooldowns. Loaded geometry remains usable when another batch fails. Neither the browser nor the gateway treats timeout/partial data as a successful empty layer.
+```bash
+npm ci --ignore-scripts
+npm run dev
+```
 
-Connection failures, client-side deadlines, generic gateway errors, and Cloudflare origin errors (including 521) are service failures, not evidence that a boundary is too large. They never trigger selector splitting. Affected upstreams back off for 30–120 seconds (at least 120 seconds for 521 or access rejection), respecting a longer `Retry-After`. Only explicit Overpass query timeout or memory-limit diagnostics permit smaller-query recovery. The direct development/test transport also retries Cloudflare errors. The gateway cannot repair an upstream outage or access block; the same query may work from one network and fail from another. Do not change the app identity or rotate proxies to bypass provider restrictions.
+Open http://127.0.0.1:5173. No API keys are needed: map data, search, elevation and weather all use free public services.
+
+```bash
+npm run build     # type-check and production bundle in dist/
+npm run preview   # serve the production build locally
+```
+
+---
+
+## Using the app
+
+1. **Find a place:** search for a city, address or postcode.
+2. **Draw a boundary:**
+   - **Rectangle:** click two opposite corners.
+   - **Polygon:** click the corners, then click the first point or press Enter to finish.
+   - Escape cancels the drawing.
+3. **Generate 3D scene:** the viewer opens straight away. Data loads in four batches (buildings, transport, landscape, places and recreation) and appears as it arrives.
+4. **Explore the scene:**
+   - Drag to orbit, right-drag to pan, scroll to zoom.
+   - Click a feature to inspect it.
+   - Use the layer drawer and legend to choose what is shown.
+5. **Sun:** the **Sun** button in the viewer toolbar opens the sun study.
+6. **Weather:** the weather chip at the top right shows current conditions and its switches.
+7. **Site dashboard:** opens the analysis for the same boundary, from where you can download the PDF report or JSON data.
+
+The app has three routes, `/map`, `/viewer` and `/dashboard`. Browser Back and Forward restore each boundary. Refreshing a page restores the last boundary for that tab. Production hosting must serve `index.html` for all three routes; Vite dev and preview already do.
+
+---
+
+## Data sources and attribution
+
+| Data | Source | Notes |
+| --- | --- | --- |
+| Map features | [OpenStreetMap](https://www.openstreetmap.org/copyright) via Overpass API | © OpenStreetMap contributors, ODbL |
+| Search | [Nominatim](https://nominatim.org) | Requested only when you submit a search |
+| Base map tiles | OpenStreetMap tiles | |
+| Elevation | [Mapzen Terrarium tiles](https://github.com/tilezen/joerd/blob/master/docs/formats.md) on AWS | [Attribution](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
+| Weather | [Open-Meteo](https://open-meteo.com) | Free for **non-commercial** use, no key, CC BY 4.0. Only coordinates rounded to about 1 km are sent. |
+
+> [!NOTE]
+> Open-Meteo's free tier is for non-commercial use only. A commercial deployment needs an Open-Meteo subscription, or the weather feature switched off.
+
+---
+
+## How the numbers are calculated
+
+- **Building heights:** a mapped `height` (metres or feet) is used first. Failing that, 3 m per mapped level.
+  - The viewer draws buildings with no height at 10 m. The dashboard leaves them out of its height and floor statistics.
+  - Mapped minimum heights and roof shapes (flat, gabled, pyramidal) are respected.
+- **Areas:** calculated on a local flat projection and clipped to the exact boundary, including concave shapes, with courtyards removed and overlaps merged. Accuracy drops for very large regions and near the poles.
+- **Coverage:** each piece of ground counts once, in priority order: buildings, water, green space, recreation and parking, other mapped land.
+  - Green space is a proxy for areas tagged as green, not measured vegetation.
+  - Unclassified does not mean vacant.
+- **Floor area and floor area ratio:** built from mapped levels, or height ÷ 3 m, with overlapping building parts merged at each level. This is an estimate, not a planning calculation.
+- **Buildings by use:** a building's own type comes first. Otherwise it takes the smallest land-use area containing its centre.
+- **Sun position:** calculated from the latitude, the date's solar declination and the **solar time**, where 12:00 is solar noon.
+  - Solar time can differ from clock time by up to about an hour, or more under daylight saving.
+  - Sunlight hours trace rays every 15 minutes from a grid of 2–4 m ground cells.
+  - They assume flat ground, and ignore trees and buildings outside the loaded data.
+- **Weather:** Open-Meteo's current conditions, using standard WMO weather codes. Its day/night flag drives Auto scene light.
+
+---
+
+## Project structure
+
+```
+src/
+  ui/          App shell, layer drawer, legend, dashboard, weather chip, PDF report, theme CSS
+  three/       3D scene: geometry, batching, shadows and sun study, weather effects, exports
+  data/        Map loading, layers, site analysis, solar maths, sunlight, weather, styles
+  hooks/       Data loading, analysis, sunlight and weather hooks (heavy work runs in Web Workers)
+  components/  2D map and boundary drawing (Leaflet)
+server/        Map-data gateway (Vite middleware locally, Cloudflare Pages Worker in production)
+tests/         Unit tests (*.test.mjs) and Playwright browser tests (tests/browser)
+```
+
+Main libraries:
+- React 19 with Vite and TypeScript.
+- react-three-fiber and three.js for the 3D scene.
+- Leaflet for the 2D map.
+- clipper-lib for the site analysis.
+- rhino3dm for 3DM export.
+- jsPDF and html-to-image for the PDF report. They load only when a report is requested.
+
+---
+
+## Testing
+
+```bash
+npm run lint
+npm test                                     # unit tests (Node 22.18+)
+npx playwright install chromium
+npm run test:e2e                             # browser tests
+```
+
+What the unit tests cover:
+- Layer normalisation, building heights and terrain.
+- Map loading, including retries, cooldowns and caching.
+- Site analysis.
+- Layer filtering.
+- Solar position and sunlight hours.
+- Weather parsing.
+- Rhino export: files are reopened with McNeel's reader to check layers, groups, materials and coordinates.
+
+What the browser tests cover:
+- Drawing a boundary and incremental loading with partial failures.
+- Layers, legend and inspection.
+- Exports.
+- The dashboard and the PDF and JSON downloads.
+- The sun study and live weather.
+- Phone layouts.
+
+The browser tests use synthetic map data and turn live weather off by default, so they never call live services.
+
+To test the production bundle:
+
+```bash
+VITE_MAP_DATA_TRANSPORT=direct npm run build
+PLAYWRIGHT_PREVIEW=1 npm run test:e2e -- tests/browser/map.spec.ts tests/browser/rhino.spec.ts
+```
+
+---
+
+## Deployment
+
+### Cloudflare Pages
+
+`npm run build` also outputs a Pages Advanced Mode `_worker.js` and `_routes.json`. Upload the **contents** of `dist/` to Cloudflare Pages.
+
+- **The map-data gateway:** only `/api/interpreter` runs the Worker. It is the same-origin endpoint the app uses for map data.
+- **What the gateway accepts:** only this app's generated queries.
+- **Caching:** complete responses are cached at the edge for 15 minutes, and identical requests share one response.
+- **Pacing and fallback:** upstream requests are paced, and it falls back to a backup Overpass server after a failure.
+- **Faster cancellation:** enable the `enable_request_signal` compatibility flag so cancelled browser requests also cancel the upstream request.
+
+The `elenichas/map3d` fork deploys `main` to the `map3d-studio-eleni` Pages project from the **Checks** workflow, after lint, unit tests, build and browser tests pass. This needs two settings in GitHub:
+- The repository secret `CLOUDFLARE_API_TOKEN`, with Pages Edit permission.
+- The repository variable `CLOUDFLARE_ACCOUNT_ID`.
+
+### How map data loads
+
+- **Order:** the four batches load one at a time, with a gap between requests. Batches for visible layers go first.
+- **Retries:** rate limits back off and respect `Retry-After`. A failed batch lets other batches through, then retries automatically. If it keeps failing it is split into smaller requests, within a bounded budget.
+- **Partial failure:** loaded layers stay usable if another batch fails.
+- **Stop and retry:** the drawer has **Stop loading layers** and **Retry unavailable layers**.
+- **Large areas:** very large or dense boundaries can still exceed the public servers' limits.
 
 ### Optional overpass.ch provider
 
-The `elenichas/map3d` fork publishes `main` to `map3d-studio-eleni` from the Checks workflow after lint, unit tests, build, and browser tests pass. The deploy job uploads that exact verified build. Configure the GitHub repository secret `CLOUDFLARE_API_TOKEN` with Cloudflare Pages Edit permission for the target account, and the repository variable `CLOUDFLARE_ACCOUNT_ID`. Production deployment can also be started with **Actions → Checks → Run workflow → main**. Pull requests and other repositories never run this fork-specific deploy job. The overpass.ch key belongs in Cloudflare's runtime secrets, not GitHub or the build artifact.
+To use [overpass.ch](https://overpass.ch/docs) instead of the public Overpass servers:
 
-The same geometry queries can use [overpass.ch](https://overpass.ch/docs). Create a free account, verify the email address, and create an **All APIs** key for server use. A Maps-only key does not permit geometry queries. In the Cloudflare Pages project's **Settings → Variables and Secrets**, select the intended environment (Preview for a trial deployment, Production when switching the public app), add `MAP_DATA_PROVIDER=overpass-ch` as a text variable, and add `OVERPASS_CH_API_KEY` as an encrypted secret. Redeploy the updated build after saving the bindings. Do not use `VITE_` variables for the key: those are exposed to browsers. The key is sent only to `https://api.overpass.ch/v1/interpreter` in the `X-API-Key` header, never in URLs. This server integration sends no browser Referer; configure the key for server use, without browser-referer restrictions.
+1. Create an **All APIs** key at overpass.ch.
+2. In the Pages project's **Settings → Variables and Secrets**, set:
+   - `MAP_DATA_PROVIDER=overpass-ch` as a text variable.
+   - `OVERPASS_CH_API_KEY` as an encrypted secret.
+3. Redeploy.
 
-For local testing, copy `.env.example` to the ignored `.env.local`, add the key there, and restart Vite. No key is needed at build time; Cloudflare reads it from runtime bindings. Setting the provider explicitly without its key returns a clear configuration error instead of silently using public servers. With no settings, the original public providers remain the default. Setting `MAP_DATA_PROVIDER=public` explicitly restores them without sending the secret to them. Provider caches are isolated; keep the provider set to `overpass-ch` while verifying the trial and check that successful responses report `X-Map-Source: api.overpass.ch`.
+Notes:
+- **Never use a `VITE_` prefix for the key;** anything with that prefix is shipped to browsers.
+- **Local testing:** copy `.env.example` to `.env.local`.
+- **Default:** with no settings, the public providers are used.
+- **Errors:** authentication and quota errors stop automatic retries and show a clear message.
 
-Managed requests are spaced at least 2.1 seconds apart, and each Worker isolate runs at most one at a time. Different requests arriving during active work are deferred without consuming the browser's retry budget; identical requests share the result. Limits are per account at overpass.ch, while our local pacing is per isolate: simultaneous visitors across Cloudflare isolates can still receive `concurrency_limit` or `rate_limited`. Those responses respect `Retry-After` and retry in the background. There is no silent fallback to another provider. Authentication, key-restriction and monthly-quota errors stop automatic retries and display an actionable message; the gateway suppresses repeat upstream calls for five minutes. Rotating the key resets this state. Existing complete cached geometry can still be served during an outage. No live account is created or paid plan purchased by configuring this integration.
+### Static hosting without the gateway
 
-Before publishing, test all four query batches against a small boundary from the actual Cloudflare deployment. Confirm successful geometry and source headers, then verify empty results, a larger boundary, layer toggles, and exports. The provider health endpoint alone does not validate a key or prove that geometry queries work from Cloudflare.
+Build with `VITE_MAP_DATA_TRANSPORT=direct npm run build` to call public Overpass servers directly from the browser. This is less reliable, because it depends on those servers allowing browser requests.
 
-For a static host without a compatible backend, build explicitly with `VITE_MAP_DATA_TRANSPORT=direct npm run build`. This fallback depends on the public services accepting browser-origin requests and their CORS headers; it is less reliable. Browser fixture tests use this transport to exercise individual upstream failover behavior without hitting real map servers. Rebuild with ordinary `npm run build` before deploying to Cloudflare.
+---
+
+## Credits and licence
+
+map3d Studio is a fork of [cartesiancs/map3d](https://github.com/cartesiancs/map3d) by Hyeong Jun Huh ([GitHub](https://github.com/DipokalLab)). It is extended with the layer system, site analysis dashboard, PDF reports, sun study, live weather, Rhino export and the studio interface.
+
+MIT License. Map data © OpenStreetMap contributors (ODbL). Weather data by Open-Meteo.com (CC BY 4.0).
