@@ -3,23 +3,26 @@ import { contains, isBuilding, type Feature } from './layers.ts';
 export type LandUseCategory = { id: string; label: string; color: string; icon: string };
 export type BuildingColorMode = 'default' | 'landUse';
 
-/** Zoning-map conventions: warm residential, red commercial, orange retail, purple industry, blue education. */
+/**
+ * Clean, saturated data hues on white massing: sky-blue commercial (the hero hue),
+ * amber residential, pink retail, violet industry, blue education, mint civic.
+ */
 export const landUseCategories = {
-  residential: { id: 'residential', label: 'Residential', color: '#f1cf6b', icon: 'House' },
-  commercial: { id: 'commercial', label: 'Commercial & office', color: '#e07b86', icon: 'Briefcase' },
-  retail: { id: 'retail', label: 'Retail', color: '#f09a52', icon: 'ShoppingBag' },
-  industrial: { id: 'industrial', label: 'Industrial', color: '#9c8cc4', icon: 'Factory' },
-  education: { id: 'education', label: 'Education', color: '#73a9e3', icon: 'GraduationCap' },
-  civic: { id: 'civic', label: 'Civic & institutional', color: '#4fb0a5', icon: 'Landmark' },
-  religious: { id: 'religious', label: 'Religious', color: '#d58ad0', icon: 'Church' },
-  transport: { id: 'transport', label: 'Transport & parking', color: '#a3a7bd', icon: 'TrainFront' },
-  construction: { id: 'construction', label: 'Construction & vacant', color: '#cdb48d', icon: 'Construction' },
-  recreation: { id: 'recreation', label: 'Recreation', color: '#93c98a', icon: 'Trees' },
-  agriculture: { id: 'agriculture', label: 'Agriculture', color: '#c4cf7c', icon: 'Wheat' },
-  cemetery: { id: 'cemetery', label: 'Cemetery', color: '#93ad8e', icon: 'Cross' },
-  forest: { id: 'forest', label: 'Forest', color: '#739888', icon: 'TreePine' },
-  military: { id: 'military', label: 'Military', color: '#b27f6f', icon: 'Shield' },
-  other: { id: 'other', label: 'Other land use', color: '#c9c2d6', icon: 'Shapes' },
+  residential: { id: 'residential', label: 'Residential', color: '#f3b445', icon: 'House' },
+  commercial: { id: 'commercial', label: 'Commercial & office', color: '#4fbdf0', icon: 'Briefcase' },
+  retail: { id: 'retail', label: 'Retail', color: '#ef6fa6', icon: 'ShoppingBag' },
+  industrial: { id: 'industrial', label: 'Industrial', color: '#9584f0', icon: 'Factory' },
+  education: { id: 'education', label: 'Education', color: '#3f84ec', icon: 'GraduationCap' },
+  civic: { id: 'civic', label: 'Civic & institutional', color: '#22c98a', icon: 'Landmark' },
+  religious: { id: 'religious', label: 'Religious', color: '#c48aef', icon: 'Church' },
+  transport: { id: 'transport', label: 'Transport & parking', color: '#9ea4ae', icon: 'TrainFront' },
+  construction: { id: 'construction', label: 'Construction & vacant', color: '#e2c08e', icon: 'Construction' },
+  recreation: { id: 'recreation', label: 'Recreation', color: '#86dba9', icon: 'Trees' },
+  agriculture: { id: 'agriculture', label: 'Agriculture', color: '#cbdc7e', icon: 'Wheat' },
+  cemetery: { id: 'cemetery', label: 'Cemetery', color: '#a6c8b2', icon: 'Cross' },
+  forest: { id: 'forest', label: 'Forest', color: '#4fb784', icon: 'TreePine' },
+  military: { id: 'military', label: 'Military', color: '#d48b78', icon: 'Shield' },
+  other: { id: 'other', label: 'Other land use', color: '#cfd2d9', icon: 'Shapes' },
 } satisfies Record<string, LandUseCategory>;
 type CategoryId = keyof typeof landUseCategories;
 
@@ -54,7 +57,7 @@ export function landUseCategoryForSublayer(id: string) {
   return layer === 'Land use' && type.startsWith('landuse:') ? landUseCategory(type.slice(8)) : null;
 }
 /** Buildings with no specific type, such as building=yes or an untyped part. */
-export const unspecifiedBuilding: LandUseCategory = { id: 'unspecified', label: 'Unspecified type', color: '#b9bccb', icon: 'Blocks' };
+export const unspecifiedBuilding: LandUseCategory = { id: 'unspecified', label: 'Unspecified type', color: '#e8eaee', icon: 'Blocks' };
 /** Use category for a building sublayer id such as `Buildings|building:house`, so the layer list groups types the way "By use" colours them. */
 export function buildingCategoryForSublayer(id: string): LandUseCategory {
   const [, type = ''] = id.split('|'), value = type.startsWith('building:part:') ? type.slice(14) : type.startsWith('building:') ? type.slice(9) : '';

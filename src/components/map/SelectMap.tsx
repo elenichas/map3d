@@ -72,13 +72,13 @@ function Controls({ mode, points, onChange, onDrawingChange, target }: Props) {
   const preview = mode === 'rectangle'
     ? draft.length && cursor ? rectangle(draft[0], cursor) : []
     : cursor ? [...draft, cursor] : draft;
-  const previewStyle = { color: '#6256e8', fillOpacity: .1, dashArray: '6 6', className: 'boundary-preview' };
+  const previewStyle = { color: '#2f9be8', fillOpacity: .1, dashArray: '6 6', className: 'boundary-preview' };
   return <>
-    {points.length > 2 && <Polygon positions={points} className="boundary-selection" interactive={false} pathOptions={{ color: '#6256e8', fillOpacity: draft.length ? .04 : .16, className: 'boundary-selection' }}/>}
+    {points.length > 2 && <Polygon positions={points} className="boundary-selection" interactive={false} pathOptions={{ color: '#2f9be8', fillOpacity: draft.length ? .04 : .16, className: 'boundary-selection' }}/>}
     {preview.length >= 3
       ? <Polygon positions={preview} className="boundary-preview" interactive={false} pathOptions={previewStyle}/>
       : preview.length > 1 && <Polyline positions={preview} className="boundary-preview" interactive={false} pathOptions={previewStyle}/>}
-    {draft.map((point, index) => <CircleMarker key={index} center={point} radius={4} className="draft-vertex" interactive={false} pathOptions={{ color: '#6256e8', fillColor: '#fff', fillOpacity: 1, weight: 2, className: 'draft-vertex' }}/>) }
+    {draft.map((point, index) => <CircleMarker key={index} center={point} radius={4} className="draft-vertex" interactive={false} pathOptions={{ color: '#2f9be8', fillColor: '#fff', fillOpacity: 1, weight: 2, className: 'draft-vertex' }}/>) }
     {mode === 'polygon' && draft.length >= 3 && <div className="finish-drawing"><button onClick={e => { e.stopPropagation(); finishPolygon(); }}>Finish polygon · {draft.length} points ↵</button></div>}
   </>;
 }

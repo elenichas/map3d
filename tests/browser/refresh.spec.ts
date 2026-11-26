@@ -85,7 +85,8 @@ test('changing Athens to New York clears old labels and metrics, ignores late da
   },newYork);
   await expect(page.locator('.site-kicker')).not.toContainText('Athens');
   await expect(page.locator('.site-stat').filter({hasText:'Mean building height'})).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'Download report',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Download PDF report',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Download data (JSON)',exact:true})).toBeDisabled();
   releaseNew();
   await expect(page.locator('.site-stat').filter({hasText:'Mean building height'})).toContainText('120m');
   await expect(page.locator('.site-kicker')).toContainText('New York');

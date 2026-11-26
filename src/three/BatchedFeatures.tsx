@@ -55,7 +55,7 @@ function Chunk({ batch, features, order, surfaceTint, buildingColors }: BatchMet
       // Land use is unlit and skips tone mapping, so its zoning colours show as chosen instead of washing out.
       const surface = landUse ? new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide, ...surfaceMaterial() }) : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, side: THREE.DoubleSide, ...(batch.layer !== 'Buildings' ? surfaceMaterial() : { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }) });
       // Building faces are pushed back slightly in depth so storey lines on them stay crisp.
-      object = batch.kind === 'line' ? new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, toneMapped: !landUse, ...(batch.form === 'floors' ? { transparent: true, opacity: .7 } : {}) })) : new THREE.Mesh(geometry, surface);
+      object = batch.kind === 'line' ? new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true, toneMapped: !landUse, ...(batch.form === 'floors' ? { transparent: true, opacity: .5 } : {}) })) : new THREE.Mesh(geometry, surface);
     }
     object.name = batch.key; object.userData.mapBatch = { batch, features } satisfies BatchMetadata;
     return object;

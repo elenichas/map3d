@@ -2,7 +2,7 @@ import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import { Canvas, useThree } from '@react-three/fiber';
 import { Grid } from '@react-three/drei';
 import * as THREE from 'three';
-import { Ruler, Trash2, X, Maximize2 } from 'lucide-react';
+import { Ruler, Trash2, X, Maximize2, Sun } from 'lucide-react';
 import { sceneColors } from './palette';
 import { ViewerNavigation, type ViewRequest } from './ViewerNavigation';
 import { Measurements, type Measurement, type MeasurementInput } from './Measurements';
@@ -23,11 +23,16 @@ import { lightingPresets, type SceneLighting } from './lighting';
 import { isFeatureVisible, type SublayerVisibility } from '../data/sublayers';
 import { buildTerrainGeometry } from './terrainGeometry';
 import { ScenePicking } from './ScenePicking';
-type Props = { features: Feature[]; points: Point[]; layers: Record<LayerName, boolean>; terrain: Terrain | null; selected: Feature | null; onSelect: (f: Feature | null) => void; reset: number; exportRequest: ExportRequest; onExport: (s: string) => void; onError: (s: string) => void; onPreparing?: (count: number) => void; onMeasureStart?: () => void; onFocus?: () => void; children?: ReactNode; sceneLighting?: SceneLighting; sublayers?:SublayerVisibility; buildingColors?: BuildingColors; showFloors?: boolean };
+import { declinationFor, defaultSunState, SunlightOverlay, SunPanel, SunRig, type SunState } from './SunStudy';
+import { sunPosition } from '../data/sun';
+import { useSunlight } from '../hooks/useSunlight';
+import type { Weather } from '../data/weather';
+import { WeatherEffects, weatherLighting } from './WeatherEffects';
+type Props = { features: Feature[]; points: Point[]; layers: Record<LayerName, boolean>; terrain: Terrain | null; selected: Feature | null; onSelect: (f: Feature | null) => void; reset: number; exportRequest: ExportRequest; onExport: (s: string) => void; onError: (s: string) => void; onPreparing?: (count: number) => void; onMeasureStart?: () => void; onFocus?: () => void; children?: ReactNode; sceneLighting?: SceneLighting; sublayers?:SublayerVisibility; buildingColors?: BuildingColors; showFloors?: boolean; weather?: Weather | null };
 function TerrainMesh({ terrain, project }: { terrain: Terrain; project: (p: { lat: number; lon: number }) => THREE.Vector2 }) {
   const geometry = useMemo(() => buildTerrainGeometry(terrain,project), [terrain, project]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  return <mesh geometry={geometry} userData={{ exportToGLB: true }}><meshStandardMaterial color={sceneColors.terrain} roughness={1} side={THREE.DoubleSide}/></mesh>;
+  return <mesh name="scene-terrain" geometry={geometry} userData={{ exportToGLB: true }}><meshStandardMaterial color={sceneColors.terrain} roughness={1} side={THREE.DoubleSide}/></mesh>;
 }
 function SceneExports({ exportRequest, onExport, onError, lastExport }: Pick<Props, 'exportRequest' | 'onExport' | 'onError'> & { lastExport: { current: number } }) {
   const { scene } = useThree();
@@ -100,7 +105,16 @@ export function Space(props: Props) {
   const visible = features.filter(f => isFeatureVisible(f,layers,props.sublayers)).sort((a,b) => isSurface(a) && isSurface(b) ? compareSurfaces(a,b) : Number(isSurface(b)) - Number(isSurface(a)));
   const origin = useMemo(() => ({ lat, lng }), [lat, lng]);
   const lighting = lightingPresets[props.sceneLighting || 'day'];
-  return <ViewerBoundary><div className={`model-viewport${measuring ? ' measuring' : ''}`}><Canvas frameloop="demand" dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'high-performance' }} camera={{ fov: 45, near: .5, far: 100000 }} fallback={<div className="viewer-error">Your browser does not support WebGL. Use the 2D map or another browser.</div>}><color attach="background" args={[lighting.background]}/><ambientLight intensity={lighting.ambient}/><hemisphereLight args={[lighting.sky,lighting.ground,lighting.hemisphere]}/><directionalLight name="scene-key-light" position={[300,600,200]} color={lighting.keyColor} intensity={lighting.key}/><directionalLight position={[-300,150,-200]} color={lighting.fillColor} intensity={lighting.fill}/>{props.sceneLighting==='night' && <fog attach="fog" args={[lighting.background,distance*2.8,distance*7]}/>}{features.length > 250 ? <BatchedFeatures surfaceTint={lighting.surfaceTint} buildingColors={props.buildingColors} showFloors={props.showFloors !== false} sublayers={props.sublayers} features={features} origin={origin} terrain={terrain} layers={layers} selected={selected} onSelect={onSelect} onPreparing={props.onPreparing} onError={props.onError}/> : visible.map((f,index) => <FeatureGeometry surfaceTint={lighting.surfaceTint} showFloors={props.showFloors !== false} buildingColor={props.buildingColors?.get(f.key)} surfaceStackOrder={surfaceOrder(f.layer) + index / (visible.length + 1)} key={f.key} feature={f} project={project} terrain={terrain} selected={selected?.key === f.key && f.kind === 'point'} onSelect={onSelect}/>)}{selected && selected.kind !== 'point' && isFeatureVisible(selected,layers,props.sublayers) && <SelectionHighlight feature={selected} project={project} terrain={terrain}/>} {props.children}{terrain && <TerrainMesh terrain={terrain} project={project}/>}<Grid infiniteGrid cellSize={25} sectionSize={100} fadeDistance={distance * 3} cellColor={lighting.grid} sectionColor={lighting.sections} position={[0,-.1,0]}/><SceneExports {...props} lastExport={lastExport}/>
+  const [sunOpen,setSunOpen]=useState(false);
+  const [sunState,setSunState]=useState<SunState>(defaultSunState);
+  const sun = useMemo(() => sunPosition(lat, declinationFor(sunState.date), sunState.time), [lat, sunState.date, sunState.time]);
+  const sunDate = useMemo(() => new Date(`${sunState.date}T12:00:00Z`), [sunState.date]);
+  const sunlight = useSunlight(points, features, sunDate, sunOpen && sunState.hours);
+  // In the sun study, softer fill light lets cast shadows read clearly.
+  const night = props.sceneLighting === 'night';
+  const sky = weatherLighting(props.weather, lighting.background, night, distance, [distance * (night ? 2.8 : 2.4), distance * (night ? 7 : 6.5)]);
+  const ambient = (sunOpen ? lighting.ambient * .62 : lighting.ambient) * sky.ambient, hemisphere = sunOpen ? lighting.hemisphere * .7 : lighting.hemisphere;
+  return <ViewerBoundary><div className={`model-viewport${measuring ? ' measuring' : ''}`}><Canvas shadows="soft" frameloop="demand" dpr={[1, 2]} gl={{ antialias: true, powerPreference: 'high-performance' }} camera={{ fov: 45, near: .5, far: 100000 }} fallback={<div className="viewer-error">Your browser does not support WebGL. Use the 2D map or another browser.</div>}><color attach="background" args={[sky.background]}/><ambientLight intensity={ambient}/><hemisphereLight args={[lighting.sky,lighting.ground,hemisphere]}/>{sunOpen ? <SunRig azimuth={sun.azimuth} altitude={sun.altitude} distance={distance} flatGround={!terrain}/> : <directionalLight name="scene-key-light" position={[300,600,200]} color={lighting.keyColor} intensity={lighting.key * sky.key}/>}{sunOpen && sunState.hours && sunlight.result && <SunlightOverlay result={sunlight.result}/>}<directionalLight position={[-300,150,-200]} color={lighting.fillColor} intensity={lighting.fill}/>{/* Distance fade into the background, as in a studio render. */}<fog attach="fog" args={[sky.background,sky.fog[0],sky.fog[1]]}/>{props.weather && <WeatherEffects weather={props.weather} distance={distance}/>}{features.length > 250 ? <BatchedFeatures surfaceTint={lighting.surfaceTint} buildingColors={props.buildingColors} showFloors={props.showFloors !== false} sublayers={props.sublayers} features={features} origin={origin} terrain={terrain} layers={layers} selected={selected} onSelect={onSelect} onPreparing={props.onPreparing} onError={props.onError}/> : visible.map((f,index) => <FeatureGeometry surfaceTint={lighting.surfaceTint} showFloors={props.showFloors !== false} buildingColor={props.buildingColors?.get(f.key)} surfaceStackOrder={surfaceOrder(f.layer) + index / (visible.length + 1)} key={f.key} feature={f} project={project} terrain={terrain} selected={selected?.key === f.key && f.kind === 'point'} onSelect={onSelect}/>)}{selected && selected.kind !== 'point' && isFeatureVisible(selected,layers,props.sublayers) && <SelectionHighlight feature={selected} project={project} terrain={terrain}/>} {props.children}{terrain && <TerrainMesh terrain={terrain} project={project}/>}<Grid infiniteGrid cellSize={25} sectionSize={100} fadeDistance={distance * 3} cellColor={lighting.grid} sectionColor={lighting.sections} position={[0,-.1,0]}/><SceneExports {...props} lastExport={lastExport}/>
     <ViewerNavigation projection={projection} request={viewRequest} reset={props.reset} distance={distance} scaleRef={scaleRef} cubeRef={cubeRef}/>
     <ScenePicking onSelect={onSelect} interaction={interaction}/>
     <Measurements active={measuring} start={measureStart} preview={measurePreview} measurements={measurements} interaction={interaction}/>
@@ -112,8 +126,10 @@ export function Space(props: Props) {
       </div>
       <button className="measure-toggle" aria-label="Measure distance" aria-pressed={measuring} onClick={()=>{if (!measuring) props.onMeasureStart?.();setMeasuring(value=>!value);cancelDraft();onSelect(null);}}><Ruler size={16}/>Measure</button>
       <div className="view-direction-control" role="group" aria-label="View orientation"><select aria-label="View direction" value="" onChange={event=>{if(event.target.value) requestView(event.target.value as ViewDirection);}}><option value="" disabled>View</option><option value="iso">Isometric angle</option><option value="top">Top · north up</option><option value="front">Front · from south</option><option value="back">Back · from north</option><option value="left">Left · from west</option><option value="right">Right · from east</option><option value="bottom">Bottom</option></select></div>
+      <button className="sun-toggle" aria-label="Sun study" aria-pressed={sunOpen} title="Sun and shadow study" onClick={()=>setSunOpen(value=>!value)}><Sun size={15}/><span className="sun-toggle-label">Sun</span></button>
       {props.onFocus && <button className="focus-view-button" aria-label="Focus view" title="Hide interface for a full-window 3D view" onClick={()=>{setMeasuring(false);cancelDraft();props.onFocus?.();}}><Maximize2 size={15}/></button>}
     </div>
+    {sunOpen && <SunPanel latitude={lat} state={sunState} onChange={setSunState} onClose={()=>setSunOpen(false)} sunlight={sunlight.result} busy={sunlight.busy}/>}
     {(measuring || measurements.length>0) && <div className="measurement-panel" role="region" aria-label="Measurements">
       <div className="measurement-heading"><strong>Measure distance</strong><button aria-label="Clear measurements" title="Clear measurements" disabled={!measurements.length && !measureStart} onClick={clearMeasurements}><Trash2 size={14}/></button>{measuring && <button aria-label="Exit measure tool" title="Exit measure tool" onClick={()=>{setMeasuring(false);cancelDraft();}}><X size={15}/></button>}</div>
       <p role="status">{measuring ? measureStart ? 'Choose the second point · Esc cancels' : 'Click a surface or ground to start' : 'Model distances · straight line'}</p>

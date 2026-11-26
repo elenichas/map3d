@@ -109,14 +109,15 @@ test('themes and scene lighting are independent, persist, and share the top tool
   await page.goto('/');
   await page.getByRole('button',{name:'Dark theme',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  await expect(page.locator('header')).toHaveCSS('background-color','rgb(27, 32, 58)');
+  await expect(page.locator('header')).toHaveCSS('background-color','rgb(14, 14, 16)');
   await page.screenshot({path:'test-results/theme-dark-map.png'});
   await selectRectangle(page);
   const count=requests;
   await page.evaluate(()=>{(window as any).__originalCanvas=document.querySelector('canvas');});
   const background=async()=>{
     const box=(await page.locator('canvas').boundingBox())!;
-    const image=await page.screenshot({clip:{x:box.x+2,y:box.y+2,width:1,height:1}});
+    // Inside the viewport's rounded corner, clear of the floating panels.
+    const image=await page.screenshot({clip:{x:box.x+10,y:box.y+10,width:1,height:1}});
     return page.evaluate(async base64=>{
       const image=new Image();image.src=`data:image/png;base64,${base64}`;await image.decode();
       const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
@@ -124,16 +125,18 @@ test('themes and scene lighting are independent, persist, and share the top tool
       return [...context.getImageData(0,0,1,1).data].slice(0,3);
     },image.toString('base64'));
   };
-  await expect.poll(background).toEqual([238,237,248]);
+  // Fog and the fading grid can shift the sampled sky by a shade.
+  const near=(colour:number[],target:number[])=>colour.every((value,index)=>Math.abs(value-target[index])<=2);
+  await expect.poll(async()=>near(await background(),[238,240,242])).toBe(true);
   await page.getByRole('button',{name:'Night lighting',exact:true}).click();
-  await expect.poll(background).toEqual([17,21,46]);
+  await expect.poll(async()=>near(await background(),[13,15,19])).toBe(true);
   await expect(page.getByRole('button',{name:'Night lighting',exact:true})).toHaveAttribute('aria-pressed','true');
   await page.screenshot({path:'test-results/theme-dark-night.png'});
   await page.getByRole('button',{name:'Light theme',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   await expect(page.getByRole('button',{name:'Night lighting',exact:true})).toHaveAttribute('aria-pressed','true');
   await page.getByRole('button',{name:'Day lighting',exact:true}).click();
-  await expect.poll(background).toEqual([238,237,248]);
+  await expect.poll(async()=>near(await background(),[238,240,242])).toBe(true);
   await page.screenshot({path:'test-results/theme-light-day.png'});
   expect(await page.evaluate(()=>document.querySelector('canvas')===(window as any).__originalCanvas)).toBe(true);
   expect(requests).toBe(count);
@@ -253,6 +256,93 @@ test('nested road and POI types filter independently, clear selection, and prese
   await page.getByRole('button',{name:'Hide Roads sublayers',exact:true}).click();
   await expect(service).toBeHidden();
   await page.screenshot({path:'test-results/sublayers-desktop.png'});
+});
+test('layer drawer filters, isolates and bulk-toggles layers, and the separate legend switches what it describes',async({page})=>{
+  const extras=[
+    {type:'node',id:310,tags:{amenity:'restaurant',name:'Test restaurant'},lat:40.8003,lon:-73.9498},
+    {type:'node',id:311,tags:{amenity:'bank',name:'Test bank'},lat:40.8005,lon:-73.9498},
+    {type:'way',id:312,tags:{highway:'service'},geometry:[{lat:40.799,lon:-73.9503},{lat:40.801,lon:-73.9503}]},
+  ];
+  await mockLayers(page);
+  await page.route('**/api/interpreter',route=>route.fulfill({json:{elements:[...richElements,...extras]}}));
+  await page.goto('/');await selectRectangle(page);
+  const checkbox=(name:string)=>page.getByRole('checkbox',{name,exact:true});
+  // The legend lives outside the layer list and carries the building colour controls.
+  const legend=page.getByRole('region',{name:'Legend',exact:true});
+  await expect(legend).toBeVisible();
+  await expect(page.getByRole('region',{name:'Scene layer list'}).getByRole('group',{name:'Building colours'})).toHaveCount(0);
+  // Every session starts coloured by use, with storey lines on.
+  await expect(legend.getByRole('button',{name:'By use',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(legend.getByRole('button',{name:'Floors',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(legend.getByRole('list',{name:'Building use legend'})).toBeVisible();
+  // Filtering finds a nested type, opens its category, and hides unrelated layers.
+  const filter=page.getByRole('searchbox',{name:'Filter layers'});
+  await filter.fill('restaurant');
+  await expect(checkbox('Points of interest: Restaurants')).toBeVisible();
+  await expect(checkbox('Roads')).toHaveCount(0);
+  await expect(checkbox('Points of interest: Banks')).toHaveCount(0);
+  await filter.fill('zzz');
+  await expect(page.getByText('No layers or types match',{exact:false})).toBeVisible();
+  await page.getByRole('button',{name:'Clear filter',exact:true}).click();
+  await expect(checkbox('Roads')).toBeVisible();
+  // "Only" on a layer hides the other map layers; on a type it isolates that type within its layer.
+  await page.getByRole('button',{name:'Show only Roads',exact:true}).click();
+  await expect(checkbox('Roads')).toBeChecked();
+  await expect(checkbox('Buildings')).not.toBeChecked();
+  await expect(checkbox('Transit')).not.toBeChecked();
+  await page.getByRole('button',{name:'Show Roads sublayers',exact:true}).click();
+  await page.getByRole('button',{name:'Show only Roads: Service roads',exact:true}).click();
+  await expect(checkbox('Roads: Service roads')).toBeChecked();
+  await expect(checkbox('Roads: Residential streets')).not.toBeChecked();
+  await expect(checkbox('Roads')).toHaveAttribute('aria-checked','mixed');
+  // Section and global switches.
+  await checkbox('All Movement layers').check();
+  await expect(checkbox('Transit')).toBeChecked();
+  await expect(checkbox('Roads')).toHaveAttribute('aria-checked','true');
+  await page.getByRole('button',{name:'All off',exact:true}).click();
+  for(const name of ['Buildings','Roads','Points of interest']) await expect(checkbox(name)).not.toBeChecked();
+  await page.getByRole('button',{name:'All on',exact:true}).click();
+  for(const name of ['Buildings','Roads','Points of interest','Land use']) await expect(checkbox(name)).toBeChecked();
+  await expect(checkbox('Terrain')).not.toBeChecked();
+  await page.getByRole('button',{name:'Expand all layers',exact:true}).click();
+  await expect(checkbox('Points of interest: Banks')).toBeVisible();
+  // A layer switch only turns its children off: they stay usable, and ticking one shows just it.
+  await checkbox('Points of interest').uncheck();
+  await expect(checkbox('Points of interest: Banks')).toBeEnabled();
+  await expect(checkbox('Points of interest: Banks')).not.toBeChecked();
+  await checkbox('Points of interest: Banks').check();
+  await expect(checkbox('Points of interest')).toHaveAttribute('aria-checked','mixed');
+  await expect(checkbox('Points of interest: Restaurants')).not.toBeChecked();
+  await expect(page.getByRole('button',{name:'Inspect Test bank',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Inspect Test restaurant',exact:true})).toHaveCount(0);
+  // Hiding the last visible child turns the layer off; turning it back on shows everything.
+  await checkbox('Points of interest: Banks').uncheck();
+  await expect(checkbox('Points of interest')).not.toBeChecked();
+  await checkbox('Points of interest').check();
+  await expect(checkbox('Points of interest: Restaurants')).toBeChecked();
+  await page.getByRole('button',{name:'Collapse all layers',exact:true}).click();
+  await expect(checkbox('Points of interest: Banks')).toBeHidden();
+  // Legend entries switch the layer or category they describe, in step with the layer list.
+  await legend.getByRole('button',{name:/^Transit, /}).click();
+  await expect(checkbox('Transit')).not.toBeChecked();
+  await expect(legend.getByRole('button',{name:/^Transit, /})).toHaveAttribute('aria-pressed','false');
+  await legend.getByRole('button',{name:/^Banks & money, /}).click();
+  await expect(legend.getByRole('button',{name:/^Banks & money, /})).toHaveAttribute('aria-pressed','false');
+  await expect(page.getByRole('button',{name:'Inspect Test bank',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Inspect Test restaurant',exact:true})).toBeVisible();
+  await expect(checkbox('Points of interest')).toHaveAttribute('aria-checked','mixed');
+  // Opening the inspector folds the legend into a pill right under it, level with the layer panel; closing restores it.
+  await page.getByRole('button',{name:'Inspect Test restaurant',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Expand legend',exact:true})).toBeVisible();
+  const inspector=(await page.locator('.inspector').boundingBox())!, legendBox=(await legend.boundingBox())!, layerPanel=(await page.locator('.layer-panel').boundingBox())!;
+  expect(Math.abs(inspector.y-layerPanel.y)).toBeLessThanOrEqual(1);
+  expect(legendBox.y).toBeGreaterThanOrEqual(inspector.y+inspector.height);
+  expect(Math.abs((legendBox.x+legendBox.width)-(inspector.x+inspector.width))).toBeLessThanOrEqual(1);
+  await page.getByRole('button',{name:'Close feature details',exact:true}).click();
+  await expect(legend.getByRole('button',{name:/^Transit, /})).toBeVisible();
+  await page.getByRole('button',{name:'Minimize legend',exact:true}).click();
+  await expect(legend.getByRole('button',{name:/^Transit, /})).toBeHidden();
+  await page.screenshot({path:'test-results/layer-drawer-tools.png'});
 });
 test('layer drawer scrolls overflowing sublayers while keeping its heading visible',async({page})=>{
   await mockLayers(page);await page.goto('/');await selectRectangle(page);
@@ -602,4 +692,65 @@ for (const mobile of [false, true]) test(`data guide is accessible on map and vi
   await trigger.click();
   await page.mouse.click(2,2);
   await expect(guide).not.toBeVisible();
+});
+test('sun study places the sun by date and solar time, casts shadows and maps sunlight hours',async({page})=>{
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  await mockLayers(page);await page.goto('/');await selectRectangle(page);
+  await page.getByRole('button',{name:'Sun study',exact:true}).click();
+  const panel=page.getByRole('region',{name:'Sun study',exact:true});
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('button',{name:'Equinox',exact:true})).toHaveAttribute('aria-pressed','true');
+  const slider=panel.getByRole('slider',{name:'Time of day (solar time)'});
+  await slider.fill('12');
+  await expect(panel.locator('output')).toHaveText('12:00');
+  // New York at the equinox: noon sun about 49° high, due south.
+  await expect(panel.locator('.sun-readout')).toContainText('49°');
+  await expect(panel.locator('.sun-readout')).toContainText('from the S');
+  await slider.fill('8');
+  await expect(panel.locator('.sun-readout')).toContainText('from the E');
+  await panel.getByRole('button',{name:'Winter',exact:true}).click();
+  await expect(panel.locator('.sun-readout')).toContainText('Sunset 16:3');
+  await panel.getByRole('button',{name:'Sunlight hours',exact:true}).click();
+  await expect(panel.getByText('of open ground gets 4 h+')).toBeVisible({timeout:20000});
+  await expect(panel.getByLabel(/^Colour scale from 0 to/)).toBeVisible();
+  await page.screenshot({path:'test-results/sun-study.png'});
+  await panel.getByRole('button',{name:'Close sun study',exact:true}).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Sun study',exact:true})).toHaveAttribute('aria-pressed','false');
+  expect(errors).toEqual([]);
+});
+test.describe('live weather',()=>{
+  test.use({storageState:{cookies:[],origins:[]}});
+  test('shows current conditions, follows night at the site and can be switched off',async({page})=>{
+    const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+    const weatherRequests:string[]=[];
+    await page.route('**/api.open-meteo.com/**',route=>{weatherRequests.push(route.request().url());return route.fulfill({json:{timezone:'America/New_York',current:{time:'2026-11-26T21:45',temperature_2m:6.4,apparent_temperature:3.1,relative_humidity_2m:81,is_day:0,precipitation:1.2,weather_code:63,cloud_cover:100,wind_speed_10m:18.5,wind_direction_10m:225}}});});
+    await mockLayers(page);await page.goto('/');
+    await page.getByRole('button',{name:'Dark theme',exact:true}).click();
+    await selectRectangle(page);
+    const chip=page.getByRole('button',{name:/^Weather: 6° Rain/});
+    await expect(chip).toBeVisible();
+    await expect(chip).toContainText('21:45');
+    expect(weatherRequests[0]).toMatch(/latitude=40\.80&longitude=-73\.95/);
+    await expect(page.getByRole('button',{name:'Automatic lighting',exact:true})).toHaveAttribute('aria-pressed','true');
+    const background=async()=>{
+      const box=(await page.locator('canvas').boundingBox())!;
+      const image=await page.screenshot({clip:{x:box.x+10,y:box.y+10,width:1,height:1}});
+      return page.evaluate(async base64=>{const image=new Image();image.src=`data:image/png;base64,${base64}`;await image.decode();const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const context=canvas.getContext('2d')!;context.drawImage(image,0,0);return [...context.getImageData(0,0,1,1).data].slice(0,3);},image.toString('base64'));
+    };
+    // Night at the site, so Auto lighting is dark; rain falls in the scene.
+    await expect.poll(async()=>(await background()).reduce((a,b)=>a+b,0)).toBeLessThan(60);
+    await chip.click();
+    const details=page.getByRole('dialog',{name:'Weather details'});
+    await expect(details).toContainText('Night');
+    await expect(details).toContainText('19 km/h SW');
+    await expect(details.getByRole('link',{name:'Open-Meteo.com'})).toBeVisible();
+    await page.screenshot({path:'test-results/weather-night-rain.png'});
+    // Without live weather, Auto falls back to day and nothing more is requested.
+    await details.getByRole('checkbox',{name:'Live weather'}).uncheck();
+    await expect.poll(async()=>(await background()).reduce((a,b)=>a+b,0)).toBeGreaterThan(600);
+    await expect(page.getByRole('button',{name:/^Weather: Weather off/})).toBeVisible();
+    await page.reload();await expect(page.getByRole('button',{name:/^Weather: Weather off/})).toBeVisible();
+    expect(errors).toEqual([]);
+  });
 });

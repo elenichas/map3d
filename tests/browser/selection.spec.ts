@@ -10,10 +10,10 @@ for(const large of [false,true]) test(`selection halo follows buildings and area
   expect(await page.evaluate(()=>(window as any).__exportNames())).toEqual(names);
   await page.screenshot({path:`test-results/selection-building${large?'-batched':''}.png`});
   await page.getByRole('button',{name:'Toggle lighting',exact:true}).click();
-  await expect.poll(()=>page.evaluate(()=>(window as any).__selection?.background)).toBe('11152e');
+  await expect.poll(()=>page.evaluate(()=>(window as any).__selection?.background)).toBe('0d0f13');
   await page.screenshot({path:`test-results/selection-building-night${large?'-batched':''}.png`});
   await page.getByRole('button',{name:'Toggle lighting',exact:true}).click();
-  await expect.poll(()=>page.evaluate(()=>(window as any).__selection?.background)).toBe('eeedf8');
+  await expect.poll(()=>page.evaluate(()=>(window as any).__selection?.background)).toBe('eef0f2');
   await page.getByRole('button',{name:'Select road',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>(window as any).__selection)).toMatchObject({key:'road',halos:4,width:3.5});
   expect(await page.evaluate(()=>(window as any).__exportNames())).toEqual(names);

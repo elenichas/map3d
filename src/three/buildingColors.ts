@@ -9,8 +9,8 @@ export function recolorBuildings(batch: Batch, features: Feature[], attribute: T
   for (const range of batch.ranges) {
     const hex = colors?.get(features[range.feature].key);
     if (!hex) { target.set(original.subarray(range.start * 3, range.end * 3), range.start * 3); continue; }
-    // Roofs a shade darker than walls and storey lines darker still, matching the default look.
-    color.set(hex); if (range.name.endsWith('/roof')) color.offsetHSL(0, 0, -.08); else if (range.name.endsWith('/floors')) color.offsetHSL(0, 0, -.22);
+    // Roofs a shade lighter than walls (lit tops) and storey lines darker, matching the default look.
+    color.set(hex); if (range.name.endsWith('/roof')) color.offsetHSL(0, 0, .06); else if (range.name.endsWith('/floors')) color.offsetHSL(0, 0, -.14);
     const r = Math.round(color.r * 255), g = Math.round(color.g * 255), b = Math.round(color.b * 255);
     for (let i = range.start * 3; i < range.end * 3; i += 3) { target[i] = r; target[i+1] = g; target[i+2] = b; }
   }

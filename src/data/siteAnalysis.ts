@@ -3,7 +3,6 @@ import type { Feature } from './layers.ts';
 import { featureSublayer } from './sublayers.ts';
 import { landUseCategory } from './landUseStyle.ts';
 import { poiStyleForSublayer, poiCategories } from './poiStyle.ts';
-import { palette } from '../three/palette.ts';
 
 type BoundaryPoint = { lat: number; lng: number };
 type Pair = [number, number];
@@ -233,13 +232,7 @@ export function analyzeSite(points: BoundaryPoint[], features: Feature[], onProg
   // Their interiors never overlap, so summing exact clipped areas adds no seams
   // or sampling approximation and avoids deep recursion on city-sized inputs.
   const tileSize = Math.max(100, Math.sqrt((bounds[2] - bounds[0]) * (bounds[3] - bounds[1]) / 64));
-  const covers: AreaMetric[] = [
-    ['buildings', 'Building footprints', palette.Buildings],
-    ['water', 'Water', palette.Water],
-    ['green', 'Green-designated space', palette['Green spaces']],
-    ['recreation', 'Recreation & parking', palette['Recreation & parking']],
-    ['other', 'Other mapped areas', palette['Land use']],
-  ].map(([id, label, color]) => ({ id, label, color, area: 0 }));
+  const covers: AreaMetric[] = [['buildings', 'Building footprints', '#2f9be8'], ['water', 'Water', '#8fd3f5'], ['green', 'Green-designated space', '#22c98a'], ['recreation', 'Recreation & parking', '#f0a93b'], ['other', 'Other mapped areas', '#a99cf2']].map(([id, label, color]) => ({ id, label, color, area: 0 }));
   onProgress?.('Dividing coverage analysis into manageable tiles…');
   const categoryTiles = Object.fromEntries(Object.entries(categories).map(([id, shapes]) => [id, tileShapes(shapes, bounds, tileSize)]));
   const tileKeys = [...new Set(Object.values(categoryTiles).flatMap(tiles => [...tiles.keys()]))];
@@ -251,7 +244,7 @@ export function analyzeSite(points: BoundaryPoint[], features: Feature[], onProg
       cover.area += polygonArea(shape); occupied = union([occupied, shape]);
     }
   }
-  covers.push({ id: 'unclassified', label: 'Unclassified in loaded data', area: Math.max(0, area - covers.reduce((sum, cover) => sum + cover.area, 0)), color: '#c6cadc' });
+  covers.push({ id: 'unclassified', label: 'Unclassified in loaded data', area: Math.max(0, area - covers.reduce((sum, cover) => sum + cover.area, 0)), color: '#dcdde2' });
   const footprint = covers[0].area;
   const buildings = [...buildingRows.values()];
   const heights = buildings.map(({ feature }) => ({ id: `${feature.type}/${feature.id}`, name: feature.tags.name || (feature.tags['building:part'] ? 'Unnamed building part' : 'Unnamed building'), ...measuredHeight(feature.tags) })).filter(row => row.value !== undefined) as { id: string; name: string; value: number; source: string }[];

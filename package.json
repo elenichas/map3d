@@ -20,6 +20,8 @@
     "axios": "^1.7.9",
     "clipper-lib": "^6.4.2",
     "deventds2": "^0.1.10",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",

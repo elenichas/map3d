@@ -1,0 +1,335 @@
+/*
+ * Studio theme: neutral off-white surfaces, white floating cards with soft
+ * shadows, pill controls, ink-black primary actions and a sky-blue data accent.
+ * Loaded after index.css and responsive.css so it only restyles, never re-lays out.
+ */
+
+/* ---------- Base ---------- */
+body { background: var(--background); }
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+button { border-radius: var(--radius-control); border-color: var(--border); transition: background-color .15s, color .15s, box-shadow .15s, border-color .15s; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.eyebrow, .toolbar-label, .layer-section-heading { letter-spacing: .4px; font-weight: 550; }
+h2 { font-weight: 600; letter-spacing: -.1px; }
+i { background: var(--accent); }
+
+/* ---------- Header: blends into the page, like a floating app chrome ---------- */
+header, .app-header { background: var(--background); border-bottom: 0; }
+.brand { font-weight: 700; font-size: 21px; letter-spacing: -.6px; }
+.brand > span:first-child, .brand > span:first-child:not(:disabled) {
+  background: var(--ink); color: var(--ink-text); border-radius: 12px; box-shadow: 0 4px 14px var(--shadow-strong);
+}
+.segmented-control { background: var(--panel); border: 0; border-radius: 999px; padding: 3px; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+.segmented-control button { border-radius: 999px; color: var(--text-secondary); }
+.segmented-control button[aria-pressed=true],
+.model-tools .measure-toggle[aria-pressed=true] { background: var(--ink); color: var(--ink-text); box-shadow: none; }
+.app-header .viewer-toolbar { background: var(--panel); border: 0; border-radius: 999px; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+.app-header .viewer-toolbar button { border-radius: 999px; }
+.lighting-control > button { border-radius: 999px; background: var(--panel); box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+.app-header .dashboard-link { border: 0; border-radius: 999px; background: var(--panel); color: var(--text); font-weight: 550; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+.app-header .dashboard-link svg { color: var(--accent); }
+.app-header .dashboard-link[aria-current=page] { outline: 0; background: var(--ink); color: var(--ink-text); }
+.app-header .dashboard-link[aria-current=page] svg { color: var(--ink-text); }
+.back-to-map, .app-header > .back-to-map { border: 0; border-radius: 999px; background: var(--panel); box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); font-weight: 500; }
+.compact-tools-toggle { border: 0; border-radius: 999px; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+@media (max-width: 1100px) {
+  .app-header .display-settings.open { border: 0; border-radius: var(--radius-panel); box-shadow: 0 0 0 1px var(--border-soft), 0 18px 50px var(--shadow-strong); }
+}
+
+/* ---------- Sidebar: controls float on the page background ---------- */
+.sidebar { background: var(--background); border-right: 0; }
+.drawer-top { color: var(--text); }
+.search { background: var(--panel); border: 0; border-radius: 14px; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+.search:focus-within { box-shadow: 0 0 0 2px var(--accent), 0 4px 14px var(--shadow); }
+.draw-tools button { background: var(--panel); border: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); color: var(--text-secondary); }
+.draw-tools button[aria-pressed=true] { background: var(--ink); color: var(--ink-text); box-shadow: 0 6px 18px var(--shadow-strong); }
+.primary, .primary:not(:disabled) { color: var(--ink-text); border-radius: 999px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 22px var(--shadow-strong); }
+.primary:disabled { background: var(--disabled); color: #fff; box-shadow: none; }
+.boundary-summary { background: var(--panel); border-radius: 14px; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+.results button { border: 0; border-radius: 12px; background: var(--panel); margin-bottom: 4px; }
+.step-number { border: 0; background: var(--panel); box-shadow: 0 0 0 1px var(--border-soft); }
+
+/* ---------- Main viewport framed as a rounded card on desktop ---------- */
+@media (min-width: 1101px) {
+  .workspace:not(.dashboard-mode):not(.focus-view) > main {
+    margin: 0 16px 16px 0; border-radius: 22px; box-shadow: 0 0 0 1px var(--border-soft), 0 10px 40px var(--shadow);
+  }
+  .workspace.viewer-mode:not(.focus-view) > main { margin-left: 16px; }
+}
+.viewport-bottom { background: var(--panel-glass); border-top: 1px solid var(--border-soft); color: var(--muted); }
+.data-guide-trigger { color: var(--text); font-weight: 550; }
+.leaflet-container { background: var(--map-background); }
+.leaflet-control-zoom { border: 0 !important; border-radius: 14px !important; overflow: hidden; box-shadow: 0 0 0 1px var(--border-soft), 0 4px 14px var(--shadow) !important; }
+
+/* ---------- Floating panels ---------- */
+.location-pill, .layer-panel, .inspector, .scene-notice, .scale-legend, .orientation-gizmo,
+.measurement-panel, .viewer-feedback, .tile-warning {
+  /* No backdrop blur: it forces re-compositing of the WebGL canvas on every frame. */
+  background: var(--panel-glass); border: 0; box-shadow: 0 0 0 1px var(--border-soft), 0 10px 32px var(--shadow);
+}
+.location-pill { border-radius: 999px; padding: 10px 16px; font-weight: 550; font-size: 12px; }
+.layer-panel, .inspector, .measurement-panel { border-radius: var(--radius-panel); }
+.scene-notice, .scale-legend, .viewer-feedback, .tile-warning { border-radius: 14px; }
+.orientation-gizmo { border-radius: var(--radius-panel); }
+.layer-panel .layer-row, .layer-main-row, .layer-list, .layer-panel-content > .layer-hint.layer-status { border-color: var(--border-soft); }
+.layer-main-row:has(input:checked) { background: none; }
+.layer-panel input, .layer-row input, .sublayer-row input { accent-color: var(--accent); }
+.layer-entry.loading small { color: var(--accent-text); }
+.category-badge { border-radius: 7px; box-shadow: none; }
+.land-swatch { border-radius: 50%; box-shadow: none; }
+.inspector dl > div { border-color: var(--border-soft); }
+.inspector h2 { letter-spacing: -.4px; }
+.gizmo-face { background: var(--panel); border-color: var(--border); color: var(--text-secondary); border-radius: 3px; }
+.gizmo-face:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #fff; }
+.orientation-gizmo select { border-radius: 999px; background: var(--subtle); border: 0; }
+.scale-bar { border-color: var(--text); border-radius: 2px; }
+.progress { background-image: linear-gradient(90deg, var(--border), var(--accent-soft), var(--accent), var(--border)); }
+
+/* ---------- Viewer toolbar: the reference's dark floating pill ---------- */
+.model-tools {
+  background: var(--ink); border: 0; border-radius: 999px; padding: 5px; gap: 4px;
+  box-shadow: 0 12px 32px var(--shadow-strong), 0 2px 6px var(--shadow);
+}
+.model-tools button, .model-tools .measure-toggle { color: color-mix(in srgb, var(--ink-text) 72%, transparent); background: transparent; border: 0; border-radius: 999px; }
+.model-tools button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink-text) 12%, transparent); color: var(--ink-text); }
+.model-tools .segmented-control { background: color-mix(in srgb, var(--ink-text) 8%, transparent); box-shadow: none; }
+.model-tools .segmented-control button[aria-pressed=true],
+.model-tools .measure-toggle[aria-pressed=true] { background: var(--ink-text); color: var(--ink); }
+.model-tools .view-direction-control select { color: color-mix(in srgb, var(--ink-text) 80%, transparent); background: color-mix(in srgb, var(--ink-text) 8%, transparent); border: 0; border-radius: 999px; }
+.model-tools .view-direction-control select option { color: var(--text); background: var(--panel); }
+.model-tools .view-direction-control::after { color: var(--ink-text); opacity: .7; }
+
+/* ---------- Measurements and markers pick up the sky accent ---------- */
+.measure-label { background: var(--ink); color: var(--ink-text); border: 0; border-radius: 999px; padding: 4px 9px; box-shadow: 0 4px 12px var(--shadow-strong); }
+.measure-endpoint { border-color: #fff; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+.feature-marker { box-shadow: 0 3px 10px var(--shadow-strong); }
+.finish-drawing button { background: var(--ink); color: var(--ink-text); border: 0; border-radius: 999px; box-shadow: 0 10px 26px var(--shadow-strong); }
+
+/* ---------- Data guide ---------- */
+.data-guide { border: 0; border-radius: 24px; box-shadow: 0 0 0 1px var(--border-soft), 0 30px 90px #0000003d; }
+.data-guide::backdrop { background: #0000004d; }
+.data-guide-header button { border-radius: 999px; }
+.data-guide-warning { background: var(--active); border: 0; border-left: 3px solid var(--accent); border-radius: 12px; }
+
+/* ---------- Leaflet in dark mode: neutral rather than blue-tinted ---------- */
+:root[data-theme=dark] .leaflet-tile-pane { filter: invert(.92) hue-rotate(180deg) saturate(.35) brightness(.8) contrast(.95); }
+:root:not([data-theme=dark]) .leaflet-tile-pane { filter: saturate(.55) contrast(.96) brightness(1.03); }
+
+/* ---------- Layers drawer: filter, bulk switches, section switches and "Only" ---------- */
+.layer-tools { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 2px; flex-shrink: 0; }
+.layer-filter { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 5px 0 11px; border-radius: 999px; background: var(--subtle); color: var(--muted); }
+.layer-filter:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.layer-filter input { flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; color: var(--text); font-size: 12px; }
+.layer-filter input:focus-visible { outline: 0; }
+.layer-filter input::-webkit-search-cancel-button { display: none; }
+.layer-panel .layer-filter button { width: 24px; height: 24px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); }
+.layer-panel .layer-filter button:hover { background: var(--hover); color: var(--text); }
+.layer-bulk { display: flex; gap: 4px; }
+.layer-panel .layer-bulk button { flex: 1; width: auto; min-height: 30px; margin: 0; padding: 5px 6px; gap: 5px; border: 0; border-radius: 999px; background: var(--subtle); color: var(--text-secondary); font-size: 11px; font-weight: 550; white-space: nowrap; }
+.layer-panel .layer-bulk button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.layer-section-heading { display: flex; align-items: center; gap: 8px; }
+.layer-list .layer-section-heading { position: sticky; top: 0; z-index: 2; background: var(--panel); }
+.layer-section-heading h3 { flex: 1; margin: 0; font: inherit; }
+.layer-section-count { font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.layer-section-heading input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
+.layer-main-row, .sublayer-group-row, .sublayer-line { position: relative; }
+.sublayer-line { display: flex; align-items: center; }
+.sublayer-line > .sublayer-row { flex: 1; min-width: 0; }
+/* "Only" floats over the row's end on hover or keyboard focus, so it costs no width. */
+.layer-panel .only-button {
+  position: absolute; right: 24px; top: 50%; transform: translateY(-50%); z-index: 1;
+  width: auto; min-height: 0; margin: 0; padding: 3px 9px; border: 0; border-radius: 999px;
+  background: var(--ink); color: var(--ink-text); font-size: 10px; font-weight: 600;
+  opacity: 0; transition: opacity .12s;
+}
+.layer-main-row:hover > .only-button, .sublayer-group-row:hover > .only-button, .sublayer-line:hover > .only-button,
+.layer-panel .only-button:focus-visible, .layer-panel .only-button:hover { opacity: 1; }
+.layer-panel .only-button:hover:not(:disabled) { background: var(--ink); opacity: .85; }
+@media (hover: none) {
+  /* Touch: always available, in the row's own space rather than floating over the label. */
+  .layer-panel .only-button { position: static; transform: none; opacity: 1; margin-left: 6px; background: var(--subtle); color: var(--text-secondary); }
+}
+.layer-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 14px 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.layer-panel .layer-empty button { width: auto; margin: 0; padding: 6px 12px; border: 0; border-radius: 999px; background: var(--ink); color: var(--ink-text); }
+
+/* ---------- Legend: its own floating panel, above the view cube ---------- */
+.legend-panel {
+  position: absolute; z-index: 5; right: 22px; bottom: 167px; width: 244px; max-height: calc(100% - 290px);
+  display: flex; flex-direction: column; overflow: hidden; padding: 12px 12px 10px 14px; border-radius: var(--radius-panel);
+  background: var(--panel-glass); box-shadow: 0 0 0 1px var(--border-soft), 0 10px 32px var(--shadow);
+}
+.legend-panel.minimized { width: auto; padding: 4px 4px 4px 12px; border-radius: 999px; }
+.legend-heading { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.legend-heading h2 { flex: 1; margin: 0; font-size: 13px; }
+.legend-heading button { width: 28px; height: 28px; min-height: 0; padding: 4px; border: 0; border-radius: 999px; background: transparent; }
+.legend-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; margin-top: 10px; padding-right: 2px; }
+.legend-content[hidden] { display: none; }
+.legend-section { margin: 0 0 12px; }
+.legend-section h3 { margin: 0 0 5px 6px; font-size: 10px; font-weight: 600; letter-spacing: .4px; color: var(--muted); }
+.legend-controls { display: flex; gap: 6px; margin: 0 0 6px; }
+.legend-controls .segmented-control { flex: 1; }
+.legend-controls .segmented-control button { flex: 1; min-height: 26px; padding: 4px 8px; font-size: 11px; }
+.legend-controls .floor-toggle { display: inline-flex; gap: 5px; min-height: 26px; padding: 4px 10px; border: 0; border-radius: 999px; background: var(--panel); color: var(--text-secondary); font-size: 11px; box-shadow: 0 0 0 1px var(--border-soft), 0 2px 8px var(--shadow); }
+.legend-controls .floor-toggle[aria-pressed=true] { background: var(--ink); color: var(--ink-text); box-shadow: none; }
+.legend-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.legend-entry { display: flex; align-items: center; justify-content: flex-start; gap: 9px; width: 100%; min-height: 0; padding: 5px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-size: 11.5px; text-align: left; }
+button.legend-entry:hover:not(:disabled) { background: var(--hover); }
+.legend-entry[aria-pressed=false] { color: var(--muted); }
+.legend-entry[aria-pressed=false] .legend-swatch, .legend-entry[aria-pressed=false] .legend-badge { opacity: .3; filter: grayscale(1); }
+.legend-entry[aria-pressed=false] .legend-label { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.legend-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-entry small { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.legend-swatch { flex-shrink: 0; width: 14px; height: 14px; background: var(--swatch); }
+.legend-swatch.fill { border-radius: 4px; box-shadow: inset 0 0 0 1px #0000001a; }
+/* Buildings: a small upright tower, so it never reads as a checkbox. */
+.legend-swatch.block { width: 9px; height: 15px; margin: 0 2.5px; border-radius: 2px 2px 1px 1px; box-shadow: inset -3px 0 0 #0000001f, inset 0 0 0 1px #0000001a; }
+.legend-swatch.block.unassigned { background: var(--subtle); box-shadow: inset 0 0 0 1px var(--border); }
+.legend-swatch.line { height: 4px; border-radius: 999px; }
+.legend-swatch.dot { width: 12px; height: 12px; margin: 1px; border-radius: 50%; }
+.legend-badge { display: grid; place-items: center; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; }
+.legend-stack { display: flex; flex-shrink: 0; width: 14px; }
+.legend-stack > span { flex-shrink: 0; width: 9px; height: 9px; margin-right: -5px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--panel); }
+.legend-entry[aria-pressed=false] .legend-stack { opacity: .45; filter: grayscale(.6); }
+.legend-entry[aria-pressed=false] .legend-stack + .legend-label { text-decoration: none; }
+.legend-entry[aria-pressed=false] .legend-stack ~ small { color: var(--accent-text); font-weight: 600; }
+.legend-hint { margin: 0 0 2px 6px; font-size: 10px; color: var(--muted); }
+.focus-view .legend-panel { display: none; }
+
+/* Desktop and tablet: progress and export messages sit bottom-centre, clear of the legend and view cube. */
+@media (min-width: 701px) and (min-height: 501px), (min-width: 1001px) {
+  .viewer-mode .scene-notice { left: 50%; right: auto; bottom: 52px; transform: translateX(-50%); max-width: min(560px, calc(100% - 340px)); }
+  .viewer-mode .viewer-actions, .viewer-mode:has(.scene-notice) .viewer-actions { left: 50%; right: auto; bottom: 52px; transform: translateX(-50%); width: max-content; max-width: min(420px, calc(100% - 340px)); }
+  .viewer-mode:has(.scene-notice) .viewer-actions { bottom: 108px; }
+  .viewer-mode .viewer-feedback { margin: 8px auto 0; }
+}
+/* Phones and short screens: the legend is a chip at the top right that opens downwards. */
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  /* One row of drawer tools, so the layer list keeps its height on short screens. */
+  .layer-tools { flex-direction: row; align-items: center; gap: 6px; margin: 4px 0; }
+  .layer-filter { flex: 1; min-width: 0; height: 36px; }
+  .layer-filter input { font-size: 16px; }
+  .layer-bulk { flex-shrink: 0; }
+  .layer-panel .layer-bulk button { flex: 0 0 auto; width: 36px; min-height: 36px; padding: 0; }
+  .layer-bulk .bulk-label { display: none; }
+}
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .viewer-mode .legend-panel { top: 54px; right: 10px; bottom: auto; width: min(260px, calc(100% - 20px)); max-height: calc(100% - 130px); padding: 10px 10px 8px 12px; z-index: 9; }
+  .viewer-mode .legend-panel.minimized { width: auto; padding: 2px 2px 2px 10px; }
+  .viewer-mode main:has(.inspector) .legend-panel, .viewer-mode main:has(.measurement-panel) .legend-panel,
+  .viewer-mode main:has(.viewer-feedback) .legend-panel { visibility: hidden; }
+  .legend-entry { min-height: 36px; font-size: 12px; }
+  .legend-heading button { width: 36px; height: 36px; }
+}
+/* Short landscape phones: let the open layer drawer use the height down from the camera toolbar. */
+@media (max-height: 500px) and (max-width: 1000px) {
+  .viewer-mode .layer-panel:not(.minimized) { max-height: calc(100% - 100px); }
+  .viewer-mode .layer-panel .layer-tools { margin: 2px 0; }
+  /* The heading already says "Loading" or how many layers are on. */
+  .viewer-mode .layer-panel-content > .layer-hint.layer-status { display: none; }
+}
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .viewer-mode main:has(.layer-panel:not(.minimized)) .legend-panel { visibility: hidden; }
+}
+
+/* Section headings in the layer drawer read above the layers they group. */
+.layer-panel .layer-section-heading { padding: 14px 0 8px; color: var(--text); font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.layer-panel .layer-section:first-child .layer-section-heading { padding-top: 8px; }
+.layer-panel .layer-section-count { color: var(--muted); font-size: 10px; font-weight: 500; text-transform: none; }
+
+/* Desktop: the hint and credits sit in a compact pill at the bottom right instead of a full-width bar. */
+@media (min-width: 801px) and (min-height: 501px) {
+  .viewport-bottom { left: auto; right: 22px; bottom: 12px; width: auto; max-width: calc(100% - 44px); min-height: 0; padding: 6px 8px 6px 14px; gap: 16px; border: 0; border-radius: 999px; box-shadow: 0 0 0 1px var(--border-soft), 0 4px 16px var(--shadow); }
+  .viewport-bottom .viewport-credits { gap: 12px; }
+}
+
+/* Desktop: the inspector lines up with the scene layers panel, and the legend pill sits right under it. */
+@media (min-width: 701px) and (min-height: 501px), (min-width: 1001px) {
+  .viewer-mode .inspector { top: 85px; max-height: calc(100% - 310px); }
+  .viewer-mode main:has(.inspector) .legend-panel { top: calc(var(--inspector-bottom, 85px) + 10px); bottom: auto; right: 22px; max-height: calc(100% - var(--inspector-bottom, 85px) - 170px); visibility: visible; }
+}
+@media (min-width: 701px) and (max-width: 800px) and (min-height: 501px) {
+  .viewer-mode main:has(.inspector) .legend-panel { right: 12px; }
+}
+
+/* ---------- Sun study ---------- */
+.model-tools .sun-toggle[aria-pressed=true] { background: #f7c548; color: #1c1c1e; }
+.sun-panel {
+  position: absolute; z-index: 7; top: 84px; left: 50%; transform: translateX(-50%); width: min(400px, calc(100% - 640px));
+  min-width: 340px; padding: 12px 14px; border-radius: var(--radius-panel); background: var(--panel-glass);
+  box-shadow: 0 0 0 1px var(--border-soft), 0 10px 32px var(--shadow); display: grid; gap: 10px; font-size: 12px;
+}
+.sun-heading { display: flex; align-items: center; gap: 8px; }
+.sun-heading svg { color: #e9a21a; }
+.sun-heading strong { font-size: 13px; }
+.sun-heading small { flex: 1; color: var(--muted); font-size: 10px; }
+.sun-heading button { width: 28px; height: 28px; min-height: 0; padding: 4px; border: 0; border-radius: 999px; background: transparent; }
+.sun-dates { display: flex; gap: 8px; align-items: center; }
+.sun-dates .segmented-control { flex: 1; }
+.sun-dates .segmented-control button { flex: 1; min-height: 28px; padding: 4px 8px; font-size: 11px; }
+.sun-dates input { height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--text); font: inherit; font-size: 11px; }
+.sun-time { display: flex; align-items: center; gap: 10px; }
+.sun-time input[type=range] { flex: 1; accent-color: #e9a21a; }
+.sun-time output { min-width: 42px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+.sun-play { width: 30px; height: 30px; min-height: 0; padding: 0; border: 0; border-radius: 999px; background: var(--ink); color: var(--ink-text); }
+.sun-play:hover:not(:disabled) { background: var(--ink); opacity: .85; }
+.sun-readout { margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.sun-readout strong { color: var(--text); }
+.sun-readout span { color: var(--muted); }
+.sun-hours { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sun-hours .floor-toggle { display: inline-flex; min-height: 28px; padding: 4px 12px; border: 0; border-radius: 999px; background: var(--subtle); color: var(--text-secondary); font-size: 11px; }
+.sun-hours .floor-toggle[aria-pressed=true] { background: var(--ink); color: var(--ink-text); }
+.sun-busy, .sun-share { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+.sun-share strong { color: var(--text); font-size: 13px; }
+.sun-legend { display: grid; gap: 4px; }
+.sun-ramp { height: 8px; border-radius: 999px; }
+.sun-ramp-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+.focus-view .sun-panel { display: none; }
+@media (max-width: 1100px) and (min-width: 701px) { .sun-panel { width: 380px; min-width: 0; } }
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .model-tools .sun-toggle-label { display: none; }
+  .viewer-mode .sun-panel { top: auto; bottom: calc(36px + env(safe-area-inset-bottom)); left: 10px; right: 10px; transform: none; width: auto; min-width: 0; padding: 10px 12px; gap: 8px; z-index: 9; }
+  .viewer-mode main:has(.sun-panel) .legend-panel, .viewer-mode main:has(.sun-panel) .layer-panel.minimized { visibility: hidden; }
+  .sun-dates input { display: none; }
+}
+@media (max-height: 500px) and (max-width: 1000px) { .viewer-mode .sun-panel { left: auto; width: 360px; } .sun-legend, .sun-readout span { display: none; } }
+
+/* ---------- Live weather ---------- */
+.weather-chip { position: relative; margin-left: auto; }
+.weather-button {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 0; border-radius: 999px;
+  background: var(--panel-glass); color: var(--text); font-size: 12px; box-shadow: 0 0 0 1px var(--border-soft), 0 6px 20px var(--shadow);
+}
+.weather-button:hover:not(:disabled) { background: var(--panel); }
+.weather-button strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.weather-button .weather-label { color: var(--text-secondary); white-space: nowrap; }
+.weather-button .weather-time { padding-left: 8px; border-left: 1px solid var(--border); color: var(--muted); font-variant-numeric: tabular-nums; }
+.weather-clear .weather-button > svg, .weather-partly .weather-button > svg { color: #e9a21a; }
+.weather-night .weather-button > svg { color: #8fa6ff; }
+.weather-rain .weather-button > svg, .weather-drizzle .weather-button > svg, .weather-storm .weather-button > svg { color: var(--accent); }
+.weather-details {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 270px; padding: 14px; border-radius: var(--radius-panel);
+  background: var(--panel); box-shadow: 0 0 0 1px var(--border-soft), 0 14px 40px var(--shadow-strong); display: grid; gap: 12px; font-size: 12px;
+}
+.weather-details-heading { display: flex; align-items: center; justify-content: space-between; }
+.weather-details-heading button { width: 26px; height: 26px; min-height: 0; padding: 4px; border: 0; border-radius: 999px; background: transparent; }
+.weather-now { display: flex; align-items: center; gap: 12px; }
+.weather-now strong { display: block; font-size: 24px; letter-spacing: -.6px; }
+.weather-now span { font-size: 11px; color: var(--text-secondary); }
+.weather-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; }
+.weather-facts div { padding: 8px 10px; border-radius: 10px; background: var(--subtle); }
+.weather-facts dt { font-size: 10px; color: var(--muted); }
+.weather-facts dd { margin: 2px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.weather-switches { display: flex; gap: 14px; }
+.weather-switches label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.weather-switches input { accent-color: var(--accent); }
+.weather-note, .weather-credit { margin: 0; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
+.weather-credit a { color: var(--accent-text); }
+.focus-view .weather-chip { display: none; }
+@media (max-width: 1100px) { .weather-button .weather-time { display: none; } }
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) {
+  .viewer-mode .weather-chip { position: absolute; top: 44px; left: 0; margin: 0; }
+  .weather-button { min-height: 36px; padding: 6px 12px; }
+  .weather-button .weather-label { display: none; }
+  .viewer-mode .weather-details { left: 0; right: auto; width: min(270px, calc(100vw - 24px)); }
+}
+@media (max-height: 500px) and (max-width: 1000px) { .viewer-mode .weather-chip { top: 0; left: auto; right: 0; } }

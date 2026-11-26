@@ -11,6 +11,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
     launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+    // Tests never reach the live weather service; the weather test turns it on with a mocked response.
+    storageState: { cookies: [], origins: [{ origin: "http://127.0.0.1:5179", localStorage: [{ name: "map3d.liveWeather", value: "off" }] }] },
   },
   webServer: {
     command: process.env.PLAYWRIGHT_PREVIEW === '1' ? "npm run preview -- --host 127.0.0.1 --port 5179" : "VITE_MAP_DATA_TRANSPORT=direct npm run dev -- --host 127.0.0.1 --port 5179",

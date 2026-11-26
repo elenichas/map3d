@@ -182,7 +182,7 @@ export function buildFeatureGeometries(feature: Feature, project: Projection, te
 }
 
 /** Storey lines: a darker shade of the facade, so they read on any building colour. */
-export const floorColor = (color: string) => `#${new THREE.Color(color).offsetHSL(0, 0, -.22).getHexString()}`;
+export const floorColor = (color: string) => `#${new THREE.Color(color).offsetHSL(0, 0, -.14).getHexString()}`;
 /** Land-use boundary darker than its fill, so an area still reads where buildings cover most of it. */
 export const outlineColor = (color: string) => `#${new THREE.Color(color).offsetHSL(0, .05, -.2).getHexString()}`;
 /** World-space line segments (pairs of x, y, z) tracing an area's outer ring and holes just above its fill. */

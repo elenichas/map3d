@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined, SlidersHorizontal, Minimize2, Rows3 } from 'lucide-react';
+import { SunMoon, Box, ArrowLeft, Search, Pentagon, RectangleHorizontal, Hand, ArrowUpRight, Layers, X, Download, RotateCcw, MapPin, LoaderCircle, PanelLeftClose, PanelLeftOpen, ChevronUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, EyeOff, FileJson, Sun, Moon, Sunrise, MoonStar, ChartNoAxesCombined, SlidersHorizontal, Minimize2, Rows3 } from 'lucide-react';
 import { MapComponent, type Point, type DrawMode } from '../components/map/SelectMap';
 import { Space, type ExportRequest } from '../three/Space';
 import { downloadFile } from '../data/download';
@@ -14,6 +14,10 @@ import { readPreference, savePreference, type Theme } from './preferences';
 import type { SceneLighting } from '../three/lighting';
 import { collectSublayers, featureSublayer, isFeatureVisible, type Sublayer, type SublayerVisibility } from '../data/sublayers';
 import { groupSublayers } from '../data/sublayerGroups';
+import { matchLayer, onlySublayers, resetSublayers } from '../data/layerFilter';
+import { LegendPanel } from './LegendPanel';
+import { WeatherChip } from './WeatherChip';
+import { useWeather } from '../hooks/useWeather';
 import { poiCategories, poiStyle, poiStyleForSublayer } from '../data/poiStyle';
 import { assignBuildingLandUse, landUseCategoryForSublayer, type BuildingColorMode, type LandUseCategory } from '../data/landUseStyle';
 import { PoiIcon } from '../three/poiIcons';
@@ -40,6 +44,10 @@ function PoiSwatch({ id }: { id: string }) {
   const { category, icon } = poiStyleForSublayer(id) ?? { category: poiCategories.other, icon: poiCategories.other.icon };
   return <CategoryBadge category={category} icon={icon} round/>;
 }
+/** Extra words a filter can find a layer by, beyond its name. */
+const layerKeywords: Partial<Record<LayerName, string>> = { Terrain: 'elevation height ground', 'Points of interest': 'places amenities shops', 'Trees & woodland': 'forest vegetation', 'Walking & cycling': 'footpaths paths bikes', Transit: 'rail tram bus train' };
+/** Phones and short landscape screens, where the viewer drawers share the screen. */
+const compactViewer = () => window.matchMedia('(max-width: 700px), (max-height: 500px) and (max-width: 1000px)').matches;
 const featureCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'feature' : 'features'}`;
 const roofNames: Record<string, string> = { side_hipped: 'side-hipped', half_hipped: 'half-hipped', lean_to: 'lean-to', conical: 'cone' };
 /** Floors and roof as the viewer draws them, and whether each came from the map or was estimated. */
@@ -51,15 +59,40 @@ function BuildingStructure({ tags }: { tags: Record<string, string> }) {
 }
 function App() {
   const [theme,setTheme]=useState<Theme>(()=>readPreference('map3d.theme',['light','dark'],window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
-  const [sceneLighting,setSceneLighting]=useState<SceneLighting>(()=>readPreference('map3d.sceneLighting',['day','night'],'day'));
+  // Auto follows day and night at the site, from live weather data.
+  const [lightingMode,setLightingMode]=useState<SceneLighting|'auto'>(()=>readPreference('map3d.sceneLighting',['auto','day','night'],'auto'));
+  const [liveWeather,setLiveWeather]=useState(()=>readPreference('map3d.liveWeather',['on','off'],'on')==='on');
+  const [weatherEffects,setWeatherEffects]=useState(()=>readPreference('map3d.weatherEffects',['on','off'],'on')==='on');
+  useEffect(()=>{ savePreference('map3d.liveWeather',liveWeather?'on':'off'); },[liveWeather]);
+  useEffect(()=>{ savePreference('map3d.weatherEffects',weatherEffects?'on':'off'); },[weatherEffects]);
   useEffect(()=>{ document.documentElement.dataset.theme=theme; savePreference('map3d.theme',theme); },[theme]);
-  useEffect(()=>{ savePreference('map3d.sceneLighting',sceneLighting); },[sceneLighting]);
-  const [buildingColorMode,setBuildingColorMode]=useState<BuildingColorMode>(()=>readPreference('map3d.buildingColors',['default','landUse'],'default'));
-  useEffect(()=>{ savePreference('map3d.buildingColors',buildingColorMode); },[buildingColorMode]);
-  const [showFloors,setShowFloors]=useState(()=>readPreference('map3d.buildingFloors',['on','off'],'on')==='on');
-  useEffect(()=>{ savePreference('map3d.buildingFloors',showFloors?'on':'off'); },[showFloors]);
+  useEffect(()=>{ savePreference('map3d.sceneLighting',lightingMode); },[lightingMode]);
+  // Every session starts with buildings coloured by use and storey lines drawn.
+  const [buildingColorMode,setBuildingColorMode]=useState<BuildingColorMode>('landUse');
+  const [showFloors,setShowFloors]=useState(true);
   const [drawerMinimized, setDrawerMinimized] = useState(false);
-  const [layersMinimized, setLayersMinimized] = useState(() => window.matchMedia('(max-width: 700px)').matches);
+  const [layersMinimized, setLayersMinimizedState] = useState(() => window.matchMedia('(max-width: 700px)').matches);
+  const [legendMinimized, setLegendMinimizedState] = useState(compactViewer);
+  // On small screens the layer list and the legend take turns, so one never hides behind the other.
+  const setLayersMinimized = useCallback((value: boolean | ((previous: boolean) => boolean)) => setLayersMinimizedState(previous => {
+    const next = typeof value === 'function' ? value(previous) : value;
+    if (!next && compactViewer()) setLegendMinimizedState(true);
+    return next;
+  }), []);
+  const setLegendMinimized = (value: boolean) => { setLegendMinimizedState(value); if (!value && compactViewer()) setLayersMinimizedState(true); };
+  const [layerFilter, setLayerFilter] = useState('');
+  // While the inspector is open the legend folds to a pill right under it, and comes back as it was once it closes.
+  /** Publishes the inspector's bottom edge as --inspector-bottom on <main>, so the legend can sit under it. */
+  const inspectorObserver = useRef<ResizeObserver | null>(null);
+  const trackInspector = useCallback((element: HTMLDivElement | null) => {
+    inspectorObserver.current?.disconnect(); inspectorObserver.current = null;
+    const main = element?.parentElement;
+    if (!element || !main) return;
+    const update = () => main.style.setProperty('--inspector-bottom', `${element.offsetTop + element.offsetHeight}px`);
+    update();
+    inspectorObserver.current = new ResizeObserver(update);
+    inspectorObserver.current.observe(element);
+  }, []);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [focusView, setFocusView] = useState(false);
   useEffect(() => {
@@ -108,27 +141,9 @@ function App() {
   const {cancel:cancelRhinoExport}=rhinoExport;
   useEffect(()=>{cancelRhinoExport();},[points,view,cancelRhinoExport]);
   const [selection, setSelection] = useState<{points: Point[]; feature: Feature | null}>();
-  const setSelected = useCallback((feature: Feature | null) => { setSelection({points, feature}); if (feature && window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }, [points]);
-  const [layerDefaults, setLayerDefaults] = useState<Record<LayerName, boolean>>(initialLayers);
-  const [typeOverrides, setTypeOverrides] = useState<SublayerVisibility>({});
-  const sublayerGroups = useMemo(() => collectSublayers(features), [features]);
-  // Resolve the defaults for rendering and exports. A hidden parent still allows individual types to opt in.
-  const { layers, sublayers, visibleCounts } = useMemo(() => {
-    const layers = { ...layerDefaults };
-    const sublayers: SublayerVisibility = {};
-    const visibleCounts = {} as Record<typeof vectorLayers[number], number>;
-    for (const name of vectorLayers) {
-      let visible = 0;
-      for (const type of sublayerGroups[name]) {
-        const enabled = typeOverrides[type.id] ?? layerDefaults[name];
-        sublayers[type.id] = enabled;
-        if (enabled) visible += type.count;
-      }
-      visibleCounts[name] = visible;
-      if (sublayerGroups[name].length) layers[name] = visible > 0;
-    }
-    return { layers, sublayers, visibleCounts };
-  }, [layerDefaults, sublayerGroups, typeOverrides]);
+  const setSelected = useCallback((feature: Feature | null) => { setSelection({points, feature}); if (feature && window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }, [points, setLayersMinimized]);
+  const [layers, setLayers] = useState<Record<LayerName, boolean>>(initialLayers);
+  const [sublayers,setSublayers]=useState<SublayerVisibility>({});
   const selected = useMemo(() => {
     if (selection?.points !== points || !selection.feature) return null;
     const current = features.find(feature => feature.key === selection.feature!.key);
@@ -136,6 +151,15 @@ function App() {
   }, [selection, points, features, layers, sublayers]);
   // Places share their map badge with the details card; trees keep the plain layer heading.
   const selectedPoi = selected?.kind === 'point' && selected.tags.natural !== 'tree' ? poiStyle(selected) : null;
+  const siteCentre = useMemo(() => points.length >= 3 ? { lat: points.reduce((n, p) => n + p.lat, 0) / points.length, lng: points.reduce((n, p) => n + p.lng, 0) / points.length } : null, [points]);
+  const weatherState = useWeather(view === '3d' ? siteCentre : null, liveWeather);
+  const sceneLighting: SceneLighting = lightingMode === 'auto' ? (liveWeather && weatherState.weather && !weatherState.weather.isDay ? 'night' : 'day') : lightingMode;
+  const legendBeforeInspector = useRef<boolean | null>(null);
+  const inspectorOpen = !!selected;
+  useEffect(() => {
+    if (inspectorOpen && legendBeforeInspector.current === null) { legendBeforeInspector.current = legendMinimized; setLegendMinimizedState(true); }
+    if (!inspectorOpen && legendBeforeInspector.current !== null) { setLegendMinimizedState(legendBeforeInspector.current); legendBeforeInspector.current = null; }
+  }, [inspectorOpen, legendMinimized]);
   // Building use by type or by the land-use area around it, recomputed as layers stream in.
   const buildingUses = useMemo(() => buildingColorMode === 'landUse' ? assignBuildingLandUse(features) : null, [buildingColorMode, features]);
   const buildingColors = useMemo(() => buildingUses && new Map([...buildingUses].map(([key, category]) => [key, category.color])), [buildingUses]);
@@ -168,7 +192,7 @@ function App() {
       startLayers(priority.map(group => group.id));
     }
   }, [points, view, sceneStarted, startLayers, layers, setSelected]);
-  useEffect(() => { setMode('pan'); setSelection(undefined); setFocusView(false); setToolsOpen(false); setDrawerMinimized(false); setLayersMinimized(window.matchMedia('(max-width: 700px)').matches); setStatusData(undefined); setErrorData(undefined); }, [view]);
+  useEffect(() => { setMode('pan'); setSelection(undefined); setFocusView(false); setToolsOpen(false); setDrawerMinimized(false); setLayersMinimized(window.matchMedia('(max-width: 700px)').matches); setLegendMinimizedState(compactViewer()); setStatusData(undefined); setErrorData(undefined); }, [view, setLayersMinimized]);
   const search = async (e: React.FormEvent) => {
     e.preventDefault(); if (!query.trim()) return;
     searchRequest.current?.abort(); const controller = new AbortController(); searchRequest.current = controller;
@@ -185,16 +209,53 @@ function App() {
     navigate('3d');
   };
   const layerCounts = useMemo(() => { const counts = Object.fromEntries(vectorLayers.map(name => [name, 0])); for (const feature of features) counts[feature.layer]++; return counts; }, [features]);
+  const sublayerGroups=useMemo(()=>collectSublayers(features),[features]);
+  const visibleCounts=useMemo(()=>Object.fromEntries(vectorLayers.map(name=>[name,layers[name]?sublayerGroups[name].reduce((sum,type)=>sum+(sublayers[type.id]!==false?type.count:0),0):0])),[sublayerGroups,layers,sublayers]);
   const toggleLayer=(name:LayerName,enabled:boolean)=>{
-    setLayerDefaults(previous => ({ ...previous, [name]: enabled }));
-    if (name !== 'Terrain') setTypeOverrides(previous => Object.fromEntries(Object.entries(previous).filter(([id]) => !id.startsWith(`${name}|`))));
+    setLayers(previous=>({...previous,[name]:enabled}));
+    if(enabled && name!=='Terrain') setSublayers(previous=>Object.fromEntries(Object.entries(previous).filter(([id])=>!id.startsWith(`${name}|`))));
     if(!enabled && selected?.layer===name) setSelected(null);
   };
   const toggleSublayers=(ids:string[],enabled:boolean)=>{
-    setTypeOverrides(previous=>({...previous,...Object.fromEntries(ids.map(id=>[id,enabled]))}));
+    setSublayers(previous=>({...previous,...Object.fromEntries(ids.map(id=>[id,enabled]))}));
     if(!enabled && selected && ids.includes(featureSublayer(selected).id)) setSelected(null);
   };
-  const toggleSublayer=(id:string,enabled:boolean)=>toggleSublayers([id],enabled);
+  const clearHiddenSelection=(nextLayers:Record<LayerName,boolean>,nextSublayers:SublayerVisibility)=>{ if(selected && !isFeatureVisible(selected,nextLayers,nextSublayers)) setSelected(null); };
+  /** Turn several layers on or off at once; turning a layer on shows all of its types again. */
+  const setManyLayers=(names:LayerName[],enabled:boolean)=>{
+    const nextLayers={...layers,...Object.fromEntries(names.map(name=>[name,enabled]))} as Record<LayerName,boolean>;
+    const nextSublayers=enabled?resetSublayers(sublayers,names):sublayers;
+    setLayers(nextLayers);setSublayers(nextSublayers);clearHiddenSelection(nextLayers,nextSublayers);
+  };
+  /** Show one layer, fully, and hide every other map layer. Terrain is left as it is. */
+  const showOnlyLayer=(name:LayerName)=>{
+    const nextLayers=Object.fromEntries(layerNames.map(other=>[other,other==='Terrain'&&name!=='Terrain'?layers.Terrain:other===name])) as Record<LayerName,boolean>;
+    const nextSublayers=resetSublayers(sublayers,[name]);
+    setLayers(nextLayers);setSublayers(nextSublayers);clearHiddenSelection(nextLayers,nextSublayers);
+  };
+  /** Within one layer, show only the given types; other layers keep their choices. */
+  const showOnlySublayers=(name:typeof vectorLayers[number],ids:string[])=>{
+    const nextLayers={...layers,[name]:true};
+    const nextSublayers=onlySublayers(sublayers,sublayerGroups[name],ids);
+    setLayers(nextLayers);setSublayers(nextSublayers);clearHiddenSelection(nextLayers,nextSublayers);
+  };
+  /** Legend categories: showing one on a hidden layer reveals just that category. */
+  /**
+   * Child checkboxes (types and categories) stay usable while their layer is off:
+   * ticking one turns the layer back on showing just that selection, and hiding the last
+   * visible child turns the layer off, so the parent switch always reflects its children.
+   */
+  const toggleCategory=(name:typeof vectorLayers[number],ids:string[],enabled:boolean)=>{
+    if(enabled && !layers[name]) return showOnlySublayers(name,ids);
+    if(!enabled && layers[name] && sublayerGroups[name].every(type=>ids.includes(type.id) || sublayers[type.id]===false)) return toggleLayer(name,false);
+    toggleSublayers(ids,enabled);
+  };
+  const expandableLayers=vectorLayers.filter(name=>sublayerGroups[name].length>0);
+  const allExpanded=expandableLayers.length>0 && expandableLayers.every(name=>expandedLayers[name]);
+  const setAllExpanded=(open:boolean)=>{
+    setExpandedLayers(open?Object.fromEntries(expandableLayers.map(name=>[name,true])):{});
+    setExpandedGroups(open?Object.fromEntries(expandableLayers.flatMap(name=>(groupSublayers(name,sublayerGroups[name])||[]).map(group=>[group.key,true]))):{});
+  };
   const layerStatus = (name: typeof vectorLayers[number]) => {
     const state = sceneLayers.states[groupForLayer(name).id], count = layerCounts[name];
     const countLabel = `${count.toLocaleString()} ${count === 1 ? 'feature' : 'features'}${layers[name] && visibleCounts[name]<count?` · ${visibleCounts[name].toLocaleString()} visible`:''}`;
@@ -235,7 +296,7 @@ function App() {
           boundary: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } },
           batches: Object.fromEntries(layerGroups.map(group => [group.id, { ...sceneLayers.states[group.id], elementCount: sceneLayers.sources[group.id]?.length || 0 }])),
           visibleLayers: layerNames.filter(name => layers[name]),
-          sublayers: vectorLayers.flatMap(name=>sublayerGroups[name].map(type=>({...type,parent:name,visible:sublayers[type.id]}))),
+          sublayers: vectorLayers.flatMap(name=>sublayerGroups[name].map(type=>({...type,parent:name,visible:layers[name] && sublayers[type.id]!==false}))),
           terrain: terrain ? { ...terrain, source: 'Mapzen Terrarium / AWS elevation-tiles-prod', attribution: 'https://github.com/tilezen/joerd/blob/master/docs/attribution.md' } : null,
         },
       };
@@ -272,8 +333,8 @@ function App() {
           <div className="toolbar-control lighting-control" role="group" aria-label="Scene lighting">
             <span className="toolbar-label">Scene light</span>
             <div className="segmented-control">
-              <button aria-label="Day lighting" aria-pressed={sceneLighting==='day'} title="Daytime scene lighting" onClick={()=>setSceneLighting('day')}><Sunrise size={15}/><span>Day</span></button>
-              <button aria-label="Night lighting" aria-pressed={sceneLighting==='night'} title="Nighttime scene lighting" onClick={()=>setSceneLighting('night')}><MoonStar size={15}/><span>Night</span></button>
+              <button aria-label="Automatic lighting" aria-pressed={lightingMode==='auto'} title="Day or night, following the current time at the site" onClick={()=>setLightingMode('auto')}><SunMoon size={15}/><span>Auto</span></button><button aria-label="Day lighting" aria-pressed={lightingMode==='day'} title="Daytime scene lighting" onClick={()=>setLightingMode('day')}><Sunrise size={15}/><span>Day</span></button>
+              <button aria-label="Night lighting" aria-pressed={lightingMode==='night'} title="Nighttime scene lighting" onClick={()=>setLightingMode('night')}><MoonStar size={15}/><span>Night</span></button>
             </div>
             <button aria-label="Reset camera" title="Reset camera" onClick={()=>{setToolsOpen(false);setReset(value=>value+1);}}><RotateCcw size={16}/></button>
           </div>
@@ -324,11 +385,12 @@ function App() {
     <main>
       {view !== 'dashboard' && <div className="viewport-top">
         <div className="location-pill"><MapPin size={15}/>{view === 'map' && searchLocation ? searchLocation : location}</div>
+        {view === '3d' && <WeatherChip weather={weatherState.weather} loading={weatherState.loading} error={weatherState.error} live={liveWeather} onLive={setLiveWeather} effects={weatherEffects} onEffects={setWeatherEffects} autoLighting={lightingMode==='auto'}/>}
 
       </div>}
       <div className="viewport">
         <div className="map-viewport" hidden={view !== 'map'}><MapComponent mode={mode} points={points} onChange={updateBoundary} onDrawingChange={setIsDrawing} target={target}/></div>
-        {view === '3d' && <Space key={boundaryKey(points)} buildingColors={buildingColors} showFloors={showFloors} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} onFocus={() => { setSelected(null); setToolsOpen(false); setFocusView(true); }} onMeasureStart={() => { if (window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }} sceneLighting={sceneLighting}/>}
+        {view === '3d' && <Space key={boundaryKey(points)} buildingColors={buildingColors} showFloors={showFloors} sublayers={sublayers} features={features} points={points} layers={layers} terrain={terrain} selected={selected} onSelect={setSelected} reset={reset} exportRequest={exportRequest} onExport={message => setStatus(message)} onError={message => setError(message)} onPreparing={setPreparing} onFocus={() => { setSelected(null); setToolsOpen(false); setFocusView(true); }} onMeasureStart={() => { if (window.matchMedia('(max-width: 700px)').matches) setLayersMinimized(true); }} sceneLighting={sceneLighting} weather={liveWeather && weatherEffects ? weatherState.weather : null}/>}
         {view === 'dashboard' && <Suspense fallback={<div className="site-calculating">Opening site dashboard…</div>}><SiteDashboard key={boundaryKey(points)} points={points} location={location} data={sceneLayers} analysis={analysis} onMap={returnToMap} onViewer={generate}/></Suspense>}
       </div>
       {view === '3d' && <>
@@ -341,49 +403,70 @@ function App() {
           </div>
           <div id="scene-layers-content" className="layer-panel-content" hidden={layersMinimized}>
             <div className="layer-loading-controls">{loadControls}</div>
-            <div className="layer-list" role="region" aria-label="Scene layer list" tabIndex={0}>{layerMenuSections.map(section => <div className="layer-section" key={section.label}><h3 className="layer-section-heading">{section.label}</h3>{section.layers.map(name => {
+            <div className="layer-tools">
+              <label className="layer-filter"><Search size={14} aria-hidden="true"/><input type="search" aria-label="Filter layers" placeholder="Filter layers and types" value={layerFilter} onChange={event=>setLayerFilter(event.target.value)} onKeyDown={event=>{if(event.key==='Escape' && layerFilter){event.stopPropagation();setLayerFilter('');}}}/>{layerFilter && <button aria-label="Clear layer filter" title="Clear filter" onClick={()=>setLayerFilter('')}><X size={13}/></button>}</label>
+              <div className="layer-bulk" role="group" aria-label="All layers">
+                <button aria-label="All on" onClick={()=>setManyLayers([...vectorLayers],true)} title="Show every map layer and all of their types (terrain stays as it is)"><Eye size={13}/><span className="bulk-label">All on</span></button>
+                <button aria-label="All off" onClick={()=>setManyLayers([...vectorLayers],false)} title="Hide every map layer (terrain stays as it is)"><EyeOff size={13}/><span className="bulk-label">All off</span></button>
+                <button onClick={()=>setAllExpanded(!allExpanded)} disabled={!expandableLayers.length} aria-label={allExpanded?'Collapse all layers':'Expand all layers'} title={allExpanded?'Collapse every layer':'Expand every layer and category'}>{allExpanded?<ChevronsDownUp size={13}/>:<ChevronsUpDown size={13}/>}<span className="bulk-label">{allExpanded?'Collapse':'Expand'}</span></button>
+              </div>
+            </div>
+            <div className="layer-list" role="region" aria-label="Scene layer list" tabIndex={0}>{(()=>{
+              const filtering=layerFilter.trim().length>0;
+              const sections=layerMenuSections.map(section=>({...section,rows:section.layers.map(name=>{
+                const types=name==='Terrain'?[]:sublayerGroups[name];
+                const groups=name==='Terrain'?null:groupSublayers(name,types);
+                return {name,types,groups,match:matchLayer(name,types,groups,layerFilter,layerKeywords[name])};
+              }).filter(row=>row.match.visible)})).filter(section=>section.rows.length>0);
+              if(!sections.length) return <p className="layer-empty">No layers or types match “{layerFilter.trim()}”.<button onClick={()=>setLayerFilter('')}>Clear filter</button></p>;
+              return sections.map(section=>{
+                // Terrain loads elevation on demand, so section switches leave it to its own checkbox.
+                const switchable=section.layers.filter(name=>name!=='Terrain');
+                const onCount=switchable.filter(name=>layers[name]).length;
+                return <div className="layer-section" key={section.label}><div className="layer-section-heading"><h3>{section.label}</h3><span className="layer-section-count">{onCount}/{switchable.length} on</span><input type="checkbox" aria-label={`All ${section.label} layers`} title={`Show or hide every ${section.label.toLowerCase()} layer`} checked={onCount===switchable.length} ref={input=>{if(input) input.indeterminate=onCount>0 && onCount<switchable.length;}} aria-checked={onCount>0 && onCount<switchable.length?'mixed':onCount===switchable.length} onChange={event=>setManyLayers(switchable,event.target.checked)}/></div>{section.rows.map(({name,types,groups,match})=>{
               const state = name === 'Terrain' ? null : sceneLayers.states[groupForLayer(name).id];
-              const types=name==='Terrain'?[]:sublayerGroups[name];
               const mixed=name!=='Terrain' && layers[name] && visibleCounts[name]>0 && visibleCounts[name]<layerCounts[name];
               const checked=layers[name] && (name==='Terrain' || !layerCounts[name] || visibleCounts[name]===layerCounts[name]);
               const groupId=`sublayers-${layerNames.indexOf(name)}`;
+              const expanded=filtering && !match.all ? true : !!expandedLayers[name];
               return <div key={name} className={`layer-entry ${state?.status || ''}`}>
                 <div className="layer-main-row">
-                  {types.length>0 ? <button className="sublayer-expander" aria-label={`${expandedLayers[name]?'Hide':'Show'} ${name} sublayers`} title={`${types.length} ${types.length===1?'sublayer':'sublayers'}`} aria-expanded={!!expandedLayers[name]} aria-controls={groupId} onClick={()=>setExpandedLayers(previous=>({...previous,[name]:!previous[name]}))}>{expandedLayers[name]?<ChevronDown size={14}/>:<ChevronRight size={14}/>}</button>:<span className="sublayer-spacer"/>}
+                  {types.length>0 ? <button className="sublayer-expander" aria-label={`${expanded?'Hide':'Show'} ${name} sublayers`} title={`${types.length} ${types.length===1?'sublayer':'sublayers'}`} aria-expanded={expanded} aria-controls={groupId} onClick={()=>setExpandedLayers(previous=>({...previous,[name]:!expanded}))}>{expanded?<ChevronDown size={14}/>:<ChevronRight size={14}/>}</button>:<span className="sublayer-spacer"/>}
                   <label className="layer-row"><span>{name}<small>{name === 'Terrain' ? !layers.Terrain ? 'Load elevation on demand' : terrainState === 'loading' ? 'Loading elevation…' : terrainState === 'error' ? 'Failed · flat ground shown' : terrain ? `${Math.round(terrain.baseline)}–${Math.round(Math.max(...terrain.elevations))} m elevation` : 'Waiting for scene' : layerStatus(name)}{types.length>1 && <span className="type-count"> · {types.length} types</span>}</small></span><input aria-label={name} type="checkbox" checked={checked} ref={input=>{if(input) input.indeterminate=mixed;}} aria-checked={mixed?'mixed':checked} onChange={e=>toggleLayer(name,e.target.checked)}/></label>
+                  {name!=='Terrain' && <button className="only-button" aria-label={`Show only ${name}`} title={`Show only ${name}, hiding the other map layers`} onClick={()=>showOnlyLayer(name)}>Only</button>}
                 </div>
-                {name==='Buildings' && layers.Buildings && <div className="building-color-mode">
-                  <div className="building-view-row"><div className="segmented-control compact" role="group" aria-label="Building colours"><button aria-pressed={buildingColorMode==='default'} onClick={()=>setBuildingColorMode('default')} title="Mapped building and roof colours">Mapped</button><button aria-pressed={buildingColorMode==='landUse'} onClick={()=>setBuildingColorMode('landUse')} title="Colour buildings by their type, or by the land use they stand in">By use</button></div><button className="floor-toggle" aria-pressed={showFloors} onClick={()=>setShowFloors(value=>!value)} title="Draw a line at each storey on building facades"><Rows3 size={13}/>Floors</button></div>
-                  {buildingColorMode==='landUse' && <ul className="building-use-legend" aria-label="Building use legend">{buildingLegend.map(({category,count})=><li key={category.id}><span className="land-swatch" style={{background:category.color}}/>{category.label}<small>{count.toLocaleString()}</small></li>)}{layerCounts.Buildings>buildingUses!.size && <li><span className="land-swatch unassigned"/>No mapped use<small>{(layerCounts.Buildings-buildingUses!.size).toLocaleString()}</small></li>}</ul>}
-                </div>}
-                {types.length>0 && <div className="sublayer-list" id={groupId} role="group" aria-label={`${name} sublayers`} hidden={!expandedLayers[name]}>{(()=>{
-                  const typeRow=(type:Sublayer)=><label className="sublayer-row" key={type.id}><span>{name==='Points of interest' && <PoiSwatch id={type.id}/>}{name==='Land use' && <LandUseSwatch id={type.id}/>}{type.label}<small>{featureCount(type.count)}</small></span><input type="checkbox" aria-label={`${name}: ${type.label}`} checked={sublayers[type.id]} onChange={e=>toggleSublayer(type.id,e.target.checked)}/></label>;
-                  const groups=name==='Terrain'?null:groupSublayers(name,types);
-                  if(!groups) return types.map(typeRow);
-                  return groups.map(group=>{
-                    const ids=group.types.map(type=>type.id), shown=ids.filter(id=>sublayers[id]).length, open=!!expandedGroups[group.key], listId=`${groupId}-${group.category.id}`;
+                {types.length>0 && name!=='Terrain' && <div className="sublayer-list" id={groupId} role="group" aria-label={`${name} sublayers`} hidden={!expanded}>{(()=>{
+                  const shownType=(type:Sublayer)=>match.all || match.types.has(type.id);
+                  const typeRow=(type:Sublayer)=><div className="sublayer-line" key={type.id}><label className="sublayer-row"><span>{name==='Points of interest' && <PoiSwatch id={type.id}/>}{name==='Land use' && <LandUseSwatch id={type.id}/>}{type.label}<small>{featureCount(type.count)}</small></span><input type="checkbox" aria-label={`${name}: ${type.label}`} checked={layers[name] && sublayers[type.id]!==false} onChange={e=>toggleCategory(name,[type.id],e.target.checked)}/></label><button className="only-button" aria-label={`Show only ${name}: ${type.label}`} title={`Show only ${type.label} in ${name}`} onClick={()=>showOnlySublayers(name,[type.id])}>Only</button></div>;
+                  if(!groups) return types.filter(shownType).map(typeRow);
+                  return groups.filter(group=>match.all || match.groups.has(group.key)).map(group=>{
+                    const ids=group.types.map(type=>type.id), shown=layers[name]?ids.filter(id=>sublayers[id]!==false).length:0, open=filtering && !match.all ? true : !!expandedGroups[group.key], listId=`${groupId}-${group.category.id}`;
                     return <div className="sublayer-group" key={group.key}>
                       <div className="sublayer-group-row">
                         <button className="sublayer-expander" aria-label={`${open?'Hide':'Show'} ${group.category.label} types`} aria-expanded={open} aria-controls={listId} onClick={()=>setExpandedGroups(previous=>({...previous,[group.key]:!open}))}>{open?<ChevronDown size={13}/>:<ChevronRight size={13}/>}</button>
-                        <label className="sublayer-row"><span><CategoryBadge category={group.category} muted={name==='Buildings' && buildingColorMode!=='landUse'}/><span className="sublayer-group-label">{group.category.label}<small>{featureCount(group.count)} · {group.types.length} {group.types.length===1?'type':'types'}</small></span></span><input type="checkbox" aria-label={`${name}: ${group.category.label}`} checked={shown===ids.length && shown>0} ref={input=>{if(input) input.indeterminate=shown>0 && shown<ids.length;}} aria-checked={shown>0 && shown<ids.length?'mixed':shown===ids.length} onChange={e=>toggleSublayers(ids,e.target.checked)}/></label>
+                        <label className="sublayer-row"><span><CategoryBadge category={group.category} muted={name==='Buildings' && buildingColorMode!=='landUse'}/><span className="sublayer-group-label">{group.category.label}<small>{featureCount(group.count)} · {group.types.length} {group.types.length===1?'type':'types'}{layers[name] && shown<ids.length?` · ${shown} shown`:''}</small></span></span><input type="checkbox" aria-label={`${name}: ${group.category.label}`} checked={shown===ids.length && shown>0} ref={input=>{if(input) input.indeterminate=shown>0 && shown<ids.length;}} aria-checked={shown>0 && shown<ids.length?'mixed':shown===ids.length} onChange={e=>toggleCategory(name,ids,e.target.checked)}/></label>
+                        <button className="only-button" aria-label={`Show only ${name}: ${group.category.label}`} title={`Show only ${group.category.label} in ${name}`} onClick={()=>showOnlySublayers(name,ids)}>Only</button>
                       </div>
-                      <div className="sublayer-list nested" id={listId} role="group" aria-label={`${group.category.label} types`} hidden={!open}>{group.types.map(typeRow)}</div>
+                      <div className="sublayer-list nested" id={listId} role="group" aria-label={`${group.category.label} types`} hidden={!open}>{group.types.filter(shownType).map(typeRow)}</div>
                     </div>;
                   });
                 })()}</div>}
                 {state && ['error', 'cancelled'].includes(state.status) && <div className="layer-failure"><details><summary>Why this layer is unavailable</summary><p>{state.message}</p></details><button disabled={loading} title={loading ? 'Other layers are still loading' : `Retry ${name}`} onClick={() => sceneLayers.retry(groupForLayer(name as typeof vectorLayers[number]).id)}>Retry {name}</button></div>}
               </div>;
-            })}</div>)}</div>
+            })}</div>;
+              });
+            })()}</div>
             {layers.Terrain && terrainState === 'error' && <div className="terrain-error" role="status">{terrainError}<button onClick={retryTerrain}>Retry elevation</button></div>}
             <p className="layer-hint layer-status" aria-live="polite">{sceneMessage}</p>
           </div>
         </div>
+        <LegendPanel layers={layers} sublayers={sublayers} sublayerGroups={sublayerGroups} layerCounts={layerCounts} buildingColorMode={buildingColorMode} onBuildingColorMode={setBuildingColorMode} showFloors={showFloors} onShowFloors={setShowFloors} buildingLegend={buildingLegend} unassignedBuildings={buildingUses ? Math.max(0, layerCounts.Buildings - buildingUses.size) : 0} onToggleLayer={toggleLayer} onToggleCategory={toggleCategory} minimized={legendMinimized} onMinimize={setLegendMinimized}/>
         <div className="viewer-actions">
           {status && <p className="viewer-feedback" role="status">{status}</p>}
           {rhinoExport.busy && <button className="rhino-cancel" onClick={()=>{rhinoExport.cancel();setStatus('Rhino export cancelled.');}}>Cancel Rhino export</button>}
           {error && <p className="viewer-feedback error-text" role="alert">{error}</p>}
         </div>
-        {selected && <div className={`inspector${selectedPoi ? ' inspector-poi' : ''}`} style={selectedPoi ? { ['--poi-color' as string]: selectedPoi.category.color } : undefined} role="dialog" aria-label="Feature details"><button className="close" aria-label="Close feature details" onClick={() => setSelected(null)}><X size={18}/></button><div className="eyebrow">{selected.layer === 'Buildings' ? 'BUILDING INSPECTOR' : selectedPoi ? `${selectedPoi.category.label} · ${selected.layer}`.toUpperCase() : selected.layer.toUpperCase()}</div><div className={selectedPoi ? 'inspector-poi-heading' : undefined}>{selectedPoi && <span className="poi-badge-large" style={{ background: selectedPoi.category.color }} aria-hidden="true"><PoiIcon name={selectedPoi.icon} size={20} color="#ffffff"/></span>}<h2>{selected.tags.name || (selected.layer === 'Buildings' ? 'Unnamed building' : selected.tags.amenity || selected.tags.leisure || selected.tags.natural || selected.tags.landuse || selected.tags.highway || selected.layer)}</h2></div><p className="hint">OpenStreetMap · {selected.type}/{selected.id}</p><dl>{Object.entries(selected.tags).map(([k,v]) => <div key={k}><dt>{k.replace(/_/g, ' ')}</dt><dd>{v}</dd></div>)}</dl>{selected.layer === 'Buildings' && <><p className="hint">{!buildingDimensions(selected.tags).estimated ? 'Height from map data.' : selected.tags['building:levels'] ? 'Height estimated at 3 m per level.' : 'Height unavailable. Displayed at an estimated 10 m.'}</p>{selected.tags['building:part'] && <p className="hint">Mapped building part · elevation offset respected.</p>}<BuildingStructure tags={selected.tags}/></>}</div>}
+        {selected && <div ref={trackInspector} className={`inspector${selectedPoi ? ' inspector-poi' : ''}`} style={selectedPoi ? { ['--poi-color' as string]: selectedPoi.category.color } : undefined} role="dialog" aria-label="Feature details"><button className="close" aria-label="Close feature details" onClick={() => setSelected(null)}><X size={18}/></button><div className="eyebrow">{selected.layer === 'Buildings' ? 'BUILDING INSPECTOR' : selectedPoi ? `${selectedPoi.category.label} · ${selected.layer}`.toUpperCase() : selected.layer.toUpperCase()}</div><div className={selectedPoi ? 'inspector-poi-heading' : undefined}>{selectedPoi && <span className="poi-badge-large" style={{ background: selectedPoi.category.color }} aria-hidden="true"><PoiIcon name={selectedPoi.icon} size={20} color="#ffffff"/></span>}<h2>{selected.tags.name || (selected.layer === 'Buildings' ? 'Unnamed building' : selected.tags.amenity || selected.tags.leisure || selected.tags.natural || selected.tags.landuse || selected.tags.highway || selected.layer)}</h2></div><p className="hint">OpenStreetMap · {selected.type}/{selected.id}</p><dl>{Object.entries(selected.tags).map(([k,v]) => <div key={k}><dt>{k.replace(/_/g, ' ')}</dt><dd>{v}</dd></div>)}</dl>{selected.layer === 'Buildings' && <><p className="hint">{!buildingDimensions(selected.tags).estimated ? 'Height from map data.' : selected.tags['building:levels'] ? 'Height estimated at 3 m per level.' : 'Height unavailable. Displayed at an estimated 10 m.'}</p>{selected.tags['building:part'] && <p className="hint">Mapped building part · elevation offset respected.</p>}<BuildingStructure tags={selected.tags}/></>}</div>}
       </>}
       {view === '3d' && sceneStarted && (loading || preparing > 0 || failedCount > 0 || stoppedCount > 0 || !features.length) && <div className="scene-notice" role="status">
         {(loading || preparing > 0) && <LoaderCircle size={15} className="spin"/>}
